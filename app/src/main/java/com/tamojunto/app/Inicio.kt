@@ -260,7 +260,10 @@ fun tempoAtras(quando: Long): String {
         minutos < 1 -> "agora"
         minutos < 60 -> "há $minutos min"
         minutos < 60 * 24 -> "há ${minutos / 60} h"
-        else -> "há ${minutos / (60 * 24)} dias"
+        else -> {
+            val dias = minutos / (60 * 24)
+            if (dias == 1L) "há 1 dia" else "há $dias dias"
+        }
     }
 }
 

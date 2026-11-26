@@ -74,6 +74,18 @@ internal val EstiloRelogio = TextStyle(
     fontSize = 30.sp,
     lineHeight = 32.sp
 )
+internal val EstiloChip = TextStyle(
+    fontFamily = Sem,
+    fontWeight = FontWeight.SemiBold,
+    fontSize = 13.sp,
+    lineHeight = 17.sp
+)
+internal val EstiloBotao = TextStyle(
+    fontFamily = Sem,
+    fontWeight = FontWeight.SemiBold,
+    fontSize = 14.sp,
+    lineHeight = 18.sp
+)
 internal val EstiloRotulo = TextStyle(
     fontFamily = Sem,
     fontWeight = FontWeight.Light,

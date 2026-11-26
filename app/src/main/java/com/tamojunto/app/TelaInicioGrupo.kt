@@ -212,8 +212,8 @@ fun TelaInicioGrupo(gid: String) {
     val nomeDe = { uid: String -> pessoas.firstOrNull { it.uid == uid }?.nome.orEmpty().ifBlank { "alguém" } }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(12.dp).papelDoSite(),
-        contentPadding = PaddingValues(horizontal = 30.dp, vertical = 40.dp),
+        modifier = Modifier.fillMaxSize().padding(12.dp).papelDoSite().padding(20.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(30.dp)
     ) {
         if (contagem != null) {
@@ -393,13 +393,12 @@ private fun CartaoFotosGrupo(
                 }
             }
         }
-        OutlinedButton(
-            onClick = aoAdicionar,
-            enabled = !enviando,
+        BotaoSite(
+            texto = if (enviando) "Enviando fotos…" else "Adicionar fotos",
+            aoClicar = aoAdicionar,
+            habilitado = !enviando,
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-        ) {
-            Text(if (enviando) "Enviando fotos…" else "Adicionar fotos")
-        }
+        )
         if (aviso.isNotBlank()) {
             Text(aviso, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
         }
@@ -478,11 +477,12 @@ private fun CartaoClimaGrupo(
             if (pegandoLocal) {
                 Text("Lendo sua posição…", style = MaterialTheme.typography.bodySmall)
             }
-            OutlinedButton(
-                onClick = aoVerMapa,
-                enabled = euAtivo && outrasAtivas.isNotEmpty(),
+            BotaoSite(
+                texto = "Ver no mapa",
+                aoClicar = aoVerMapa,
+                habilitado = euAtivo && outrasAtivas.isNotEmpty(),
                 modifier = Modifier.padding(top = 8.dp)
-            ) { Text("Ver no mapa") }
+            )
             if (aviso.isNotBlank()) {
                 Text(aviso, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
             }
@@ -503,14 +503,15 @@ private fun CartaoClimaGrupo(
         }
 
         Text("Como você está hoje?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 18.dp))
-        OPCOES_HUMOR.chunked(3).forEach { linha ->
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+        OPCOES_HUMOR.chunked(2).forEach { linha ->
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 linha.forEach { opcao ->
-                    FilterChip(
-                        selected = humorEu?.id == opcao.id,
-                        onClick = { aoEscolherHumor(opcao.id) },
-                        label = { Text(opcao.rotulo) },
-                        leadingIcon = { IconeHumor(opcao, tamanho = 18.dp) }
+                    FiltroSite(
+                        texto = opcao.rotulo,
+                        ativo = humorEu?.id == opcao.id,
+                        aoClicar = { aoEscolherHumor(opcao.id) },
+                        modifier = Modifier.weight(1f),
+                        icone = { IconeHumor(opcao, tamanho = 18.dp) }
                     )
                 }
             }
@@ -521,9 +522,11 @@ private fun CartaoClimaGrupo(
             Text("Nenhuma cartinha ainda.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
         } else {
             inicio.cartinhas.forEach { carta ->
-                OutlinedButton(onClick = { aoLer(carta) }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                    Text(rotuloComTempo("Cartinha de ${carta.nomeDe.ifBlank { nomeDe(carta.de) }}", carta.em))
-                }
+                BotaoSite(
+                    texto = rotuloComTempo("Cartinha de ${carta.nomeDe.ifBlank { nomeDe(carta.de) }}", carta.em),
+                    aoClicar = { aoLer(carta) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                )
             }
         }
         if (inicio.enviadas.isNotEmpty()) {
@@ -540,9 +543,12 @@ private fun CartaoClimaGrupo(
                 )
             }
         }
-        Button(onClick = aoEscrever, modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
-            Text("Escrever cartinha")
-        }
+        BotaoSite(
+            texto = "Escrever cartinha",
+            aoClicar = aoEscrever,
+            primario = true,
+            modifier = Modifier.fillMaxWidth().padding(top = 14.dp)
+        )
     }
 }
 
@@ -562,10 +568,10 @@ private fun DialogoEscreverCartaGrupo(
                 Text("Para", style = MaterialTheme.typography.labelLarge)
                 Row(Modifier.fillMaxWidth().padding(top = 6.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     destinatarios.forEach { pessoa ->
-                        FilterChip(
-                            selected = para == pessoa.uid,
-                            onClick = { para = pessoa.uid },
-                            label = { Text(pessoa.nome.ifBlank { "?" }) }
+                        FiltroSite(
+                            texto = pessoa.nome.ifBlank { "?" },
+                            ativo = para == pessoa.uid,
+                            aoClicar = { para = pessoa.uid }
                         )
                     }
                 }

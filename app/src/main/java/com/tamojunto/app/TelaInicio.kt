@@ -73,13 +73,13 @@ fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (dados.casalId != null) {
-                    FilterChip(selected = gidAtivo == null, onClick = { gidEscolhido = null }, label = { Text("Casal") })
+                    FiltroSite(texto = "Casal", ativo = gidAtivo == null, aoClicar = { gidEscolhido = null })
                 }
                 grupos.forEach { grupo ->
-                    FilterChip(
-                        selected = gidAtivo == grupo.gid,
-                        onClick = { gidEscolhido = grupo.gid },
-                        label = { Text(grupo.nome.ifBlank { "Grupo" }) }
+                    FiltroSite(
+                        texto = grupo.nome.ifBlank { "Grupo" },
+                        ativo = gidAtivo == grupo.gid,
+                        aoClicar = { gidEscolhido = grupo.gid }
                     )
                 }
             }
@@ -254,8 +254,8 @@ private fun InicioDoCasal(dados: DadosDoCasal, usuario: FirebaseUser) {
     val locOutra = dados.localizacoes[outra]?.takeIf { it.ativo }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(12.dp).papelDoSite(),
-        contentPadding = PaddingValues(horizontal = 30.dp, vertical = 40.dp),
+        modifier = Modifier.fillMaxSize().padding(12.dp).papelDoSite().padding(20.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(30.dp)
     ) {
         item {
@@ -554,13 +554,12 @@ private fun CartaoFotos(
                 }
             }
         }
-        OutlinedButton(
-            onClick = aoAdicionar,
-            enabled = !enviando,
+        BotaoSite(
+            texto = if (enviando) "Enviando foto…" else "Adicionar foto",
+            aoClicar = aoAdicionar,
+            habilitado = !enviando,
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-        ) {
-            Text(if (enviando) "Enviando foto…" else "Adicionar foto")
-        }
+        )
         if (aviso.isNotBlank()) {
             Text(aviso, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
         }
@@ -707,9 +706,7 @@ private fun CartaoClima(
             if (pegandoLocal) {
                 Text("Lendo sua posição…", style = MaterialTheme.typography.bodySmall)
             }
-            OutlinedButton(onClick = aoVerMapa, enabled = podeMapa, modifier = Modifier.padding(top = 8.dp)) {
-                Text("Ver no mapa")
-            }
+            BotaoSite(texto = "Ver no mapa", aoClicar = aoVerMapa, habilitado = podeMapa, modifier = Modifier.padding(top = 8.dp))
             if (aviso.isNotBlank()) {
                 Text(aviso, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
             }
@@ -720,14 +717,15 @@ private fun CartaoClima(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(top = 18.dp)
         )
-        OPCOES_HUMOR.chunked(3).forEach { linha ->
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+        OPCOES_HUMOR.chunked(2).forEach { linha ->
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 linha.forEach { opcao ->
-                    FilterChip(
-                        selected = humorEu?.id == opcao.id,
-                        onClick = { dados.definirHumor(opcao.id) },
-                        label = { Text(opcao.rotulo) },
-                        leadingIcon = { IconeHumor(opcao, tamanho = 18.dp) }
+                    FiltroSite(
+                        texto = opcao.rotulo,
+                        ativo = humorEu?.id == opcao.id,
+                        aoClicar = { dados.definirHumor(opcao.id) },
+                        modifier = Modifier.weight(1f),
+                        icone = { IconeHumor(opcao, tamanho = 18.dp) }
                     )
                 }
             }
@@ -746,9 +744,11 @@ private fun CartaoClima(
             )
         } else {
             recebidas.forEach { carta ->
-                OutlinedButton(onClick = { aoLer(carta) }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                    Text(rotuloComTempo("Cartinha de $nomeOutra", carta.em))
-                }
+                BotaoSite(
+                    texto = rotuloComTempo("Cartinha de $nomeOutra", carta.em),
+                    aoClicar = { aoLer(carta) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                )
             }
         }
         if (enviadas.isNotEmpty()) {
@@ -765,9 +765,12 @@ private fun CartaoClima(
                 )
             }
         }
-        Button(onClick = aoEscrever, modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
-            Text("Escrever cartinha")
-        }
+        BotaoSite(
+            texto = "Escrever cartinha",
+            aoClicar = aoEscrever,
+            primario = true,
+            modifier = Modifier.fillMaxWidth().padding(top = 14.dp)
+        )
     }
 }
 
