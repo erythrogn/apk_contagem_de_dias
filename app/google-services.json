@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "1086679329538",
+    "firebase_url": "https://contagem-de-dias-default-rtdb.firebaseio.com",
+    "project_id": "contagem-de-dias",
+    "storage_bucket": "contagem-de-dias.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1086679329538:android:d0620224081113f291b01b",
+        "android_client_info": {
+          "package_name": "com.tamojunto.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1086679329538-e64m4op97ohht3cu66h01tf1vbob878p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJnnlZCiZsAvvVHjm102sbyVcjeWdoJXo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1086679329538-e64m4op97ohht3cu66h01tf1vbob878p.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
