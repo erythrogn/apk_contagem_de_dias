@@ -21,6 +21,8 @@ App nativo em Kotlin e Jetpack Compose para o "tamo junto". Usa o mesmo projeto 
 - Filmes: filmes, séries e jogos em leitura, com filtros Todos, Feitos e Pendentes.
 - Coisinhas: lista com marcar como feita (grava `done` no banco do casal).
 - Notas: ainda em breve (a senha do bloco é conferida no servidor).
-- Mais: só o botão Sair por enquanto.
+- Mais > Configurações: nome e foto do perfil, data de início, convite da outra pessoa, adicionar foto da página inicial, troca da senha do Bloco e sair. As fotos da página inicial só podem ser adicionadas por enquanto.
+
+O endereço do site fica em `gradle.properties` (chave `siteUrl`). As configurações falam com as rotas `/api` do site, usando o mesmo login (o token do Firebase vai para `/api/auth/session`).
 
 Ainda falta: adicionar e editar itens, buscar capas e dados no TMDB e no RAWG, Notas, missões, calendário, viagens, humor, grupos, perfil e músicas.

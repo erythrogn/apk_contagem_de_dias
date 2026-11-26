@@ -16,7 +16,9 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,7 +28,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 
 // Menu inferior: as mesmas abas da barra do site (Início, Notas, Filmes, Coisinhas e Mais).
@@ -45,6 +46,8 @@ fun TelaPrincipal(usuario: FirebaseUser) {
         dados.iniciar()
         onDispose { dados.parar() }
     }
+
+    LaunchedEffect(usuario.uid) { Servidor.entrar() }
 
     var aba by rememberSaveable { mutableStateOf(Aba.INICIO) }
 
@@ -68,25 +71,29 @@ fun TelaPrincipal(usuario: FirebaseUser) {
                 Aba.NOTAS -> TelaNotas()
                 Aba.FILMES -> TelaFilmes(dados)
                 Aba.COISINHAS -> TelaCoisinhas(dados)
-                Aba.MAIS -> TelaMais()
+                Aba.MAIS -> TelaMais(dados, usuario)
             }
         }
     }
 }
 
 @Composable
-fun TelaMais() {
-    Column(modifier = Modifier.padding(24.dp)) {
-        Text("Mais", style = MaterialTheme.typography.headlineMedium)
-        Text(
-            "Missões, calendário e viagens ainda não foram portados para o app.",
-            modifier = Modifier.padding(top = 8.dp)
-        )
-        Button(
-            onClick = { FirebaseAuth.getInstance().signOut() },
-            modifier = Modifier.padding(top = 24.dp)
-        ) {
-            Text("Sair")
+fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
+    var emConfiguracoes by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled = emConfiguracoes) { emConfiguracoes = false }
+
+    if (emConfiguracoes) {
+        TelaConfiguracoes(dados, usuario)
+    } else {
+        Column(modifier = Modifier.padding(24.dp)) {
+            Text("Mais", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                "Missões, calendário e viagens ainda não foram portados para o app.",
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            Button(onClick = { emConfiguracoes = true }, modifier = Modifier.padding(top = 24.dp)) {
+                Text("Configurações")
+            }
         }
     }
 }

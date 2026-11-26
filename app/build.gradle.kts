@@ -15,6 +15,10 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+
+        // Endereço do site (rotas /api). Fica em gradle.properties, na chave siteUrl.
+        val siteUrl = (project.findProperty("siteUrl") as String?) ?: "https://contagemdedias.vercel.app"
+        buildConfigField("String", "SITE_URL", "\"$siteUrl\"")
     }
 
     buildTypes {
@@ -30,6 +34,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -50,4 +55,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-database")
     implementation("com.google.android.gms:play-services-auth:21.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
