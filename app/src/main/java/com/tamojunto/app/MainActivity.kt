@@ -44,6 +44,6 @@ fun RaizDoApp() {
     if (atual == null) {
         TelaLogin()
     } else {
-        TelaInicio(atual)
+        TelaPrincipal(atual)
     }
 }

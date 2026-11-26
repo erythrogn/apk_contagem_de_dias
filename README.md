@@ -16,6 +16,11 @@ App nativo em Kotlin e Jetpack Compose para o "tamo junto". Usa o mesmo projeto 
 ## Estado atual
 
 - Login com Google.
-- Tela inicial que lê o nome e a situação do casal em `usuarios/{uid}`.
+- Menu inferior: Início, Notas, Filmes, Coisinhas e Mais (as mesmas abas do site).
+- Início: contagem de dias juntos a partir de `casais/{id}/data_namoro`.
+- Filmes: filmes, séries e jogos em leitura, com filtros Todos, Feitos e Pendentes.
+- Coisinhas: lista com marcar como feita (grava `done` no banco do casal).
+- Notas: ainda em breve (a senha do bloco é conferida no servidor).
+- Mais: só o botão Sair por enquanto.
 
-Ainda falta portar as demais telas do site (filmes, séries, jogos, músicas, viagens, calendário, humor, grupos e cartinhas).
+Ainda falta: adicionar e editar itens, buscar capas e dados no TMDB e no RAWG, Notas, missões, calendário, viagens, humor, grupos, perfil e músicas.
