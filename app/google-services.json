@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "1086679329538-iih2u1suu2tf7doe6780a60juo86m6k8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tamojunto.app",
+            "certificate_hash": "111f78d06581f10037350e9a99b7025e5cf0a4e4"
+          }
+        },
+        {
           "client_id": "1086679329538-e64m4op97ohht3cu66h01tf1vbob878p.apps.googleusercontent.com",
           "client_type": 3
         }
