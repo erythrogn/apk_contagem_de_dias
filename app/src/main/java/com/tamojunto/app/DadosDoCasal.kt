@@ -9,7 +9,6 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
 import java.time.LocalDate
 import java.time.ZoneId
@@ -129,30 +128,54 @@ class DadosDoCasal(private val uid: String) {
         removeresCasal.clear()
     }
 
-    fun alternarCoisinha(item: Item) {
+    // Marca ou desmarca um item. Cada secao tem o seu campo, como no site.
+    fun alternarFeito(secao: String, item: Item, aoErro: (Exception) -> Unit) {
+        val campos: Map<String, Any?> = when (secao) {
+            "filmes" -> mapOf("watched" to !item.feito)
+            "series" -> mapOf("status" to if (item.feito) "quero ver" else "concluida")
+            "jogos" -> mapOf("status" to if (item.feito) "quero jogar" else "zerado")
+            else -> mapOf("done" to !item.feito)
+        }
+        atualizarItem(secao, item.chave, campos, item.titulo, aoErro)
+    }
+
+    fun criarItem(colecao: String, campos: Map<String, Any?>, resumo: String, aoErro: (Exception) -> Unit): Boolean {
+        val id = casalId ?: return false
+        val usuario = FirebaseAuth.getInstance().currentUser ?: return false
+        return Registro.criar(id, usuario, colecao, campos, resumo, aoErro) != null
+    }
+
+    fun atualizarItem(colecao: String, chave: String, campos: Map<String, Any?>, resumo: String, aoErro: (Exception) -> Unit) {
         val id = casalId ?: return
-        banco.getReference("casais/$id/coisinhas/${item.chave}/done").setValue(!item.feito)
+        val usuario = FirebaseAuth.getInstance().currentUser ?: return
+        Registro.atualizar(id, usuario, colecao, chave, campos, resumo, aoErro)
+    }
+
+    fun apagarItem(colecao: String, chave: String, resumo: String, aoErro: (Exception) -> Unit) {
+        val id = casalId ?: return
+        val usuario = FirebaseAuth.getInstance().currentUser ?: return
+        Registro.apagar(id, usuario, colecao, chave, resumo, aoErro)
     }
 
     // Grava uma nota do tipo texto ou lista. Devolve null se ainda não dá para salvar (sem casal ou slot).
     fun criarNota(titulo: String, conteudo: String, tipo: String): String? {
         val id = casalId ?: return null
+        val usuario = FirebaseAuth.getInstance().currentUser ?: return null
         val slot = meuSlot ?: return null
-        val ref = banco.getReference("casais/$id/bloco").push()
-        ref.setValue(
+        return Registro.criar(
+            id,
+            usuario,
+            "bloco",
             mapOf(
                 "title" to titulo,
                 "type" to tipo,
                 "author" to slot,
                 "content" to conteudo,
                 "answer" to "",
-                "createdDate" to LocalDate.now(ZoneId.of("America/Belem")).toString(),
-                "createdBy" to (FirebaseAuth.getInstance().currentUser?.email ?: ""),
-                "createdByUid" to uid,
-                "createdAt" to ServerValue.TIMESTAMP
-            )
-        )
-        return ref.key
+                "createdDate" to LocalDate.now(ZoneId.of("America/Belem")).toString()
+            ),
+            titulo.ifBlank { "Nota" }
+        ) {}
     }
 
     private fun trocarCasal(id: String?) {
