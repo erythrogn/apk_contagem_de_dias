@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Context
 import android.location.Location
 import android.os.Looper
-import android.webkit.WebView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,12 +22,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
@@ -253,9 +254,9 @@ private fun InicioDoCasal(dados: DadosDoCasal, usuario: FirebaseUser) {
     val locOutra = dados.localizacoes[outra]?.takeIf { it.ativo }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier = Modifier.fillMaxSize().padding(12.dp).papelDoSite(),
+        contentPadding = PaddingValues(horizontal = 30.dp, vertical = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(30.dp)
     ) {
         item {
             CabecalhoContagem(
@@ -366,56 +367,99 @@ internal fun CabecalhoContagem(contagem: Contagem, linhaDeData: String, unidade:
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             linhaDeData,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = EstiloRotulo,
+            color = TintaSuave,
             textAlign = TextAlign.Center
         )
-        Text("tamo junto há", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 14.dp))
-        Text("$numero", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.primary)
-        Text(palavra, style = MaterialTheme.typography.headlineSmall)
-        Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("dias" to "Dias", "meses" to "Meses", "anos" to "Anos").forEach { (chave, nome) ->
-                FilterChip(selected = unidade == chave, onClick = { aoMudar(chave) }, label = { Text(nome) })
+        Text("tamo junto há", style = EstiloApoio, modifier = Modifier.padding(top = 16.dp))
+        Text("$numero", style = EstiloNumero, color = Tinta, textAlign = TextAlign.Center)
+        Text(palavra, style = EstiloApoio, textAlign = TextAlign.Center)
+        Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+            listOf("dias" to "dias", "meses" to "meses", "anos" to "anos").forEach { (chave, nome) ->
+                BotaoUnidade(texto = nome, ativo = unidade == chave, aoClicar = { aoMudar(chave) })
             }
         }
         Text(
             contagem.composicao,
-            style = MaterialTheme.typography.bodyMedium,
+            style = EstiloApoio,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 10.dp)
+            modifier = Modifier.padding(top = 14.dp)
         )
-        Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            MedidaDoTempo(contagem.horas, "horas")
-            MedidaDoTempo(contagem.minutos, "minutos")
-            MedidaDoTempo(contagem.segundos, "segundos")
+        // Relógio: divisórias finas entre as medidas, como no site.
+        Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.Center) {
+            MedidaDoTempo(contagem.horas, "horas", separador = false)
+            MedidaDoTempo(contagem.minutos, "minutos", separador = true)
+            MedidaDoTempo(contagem.segundos, "segundos", separador = true)
         }
     }
 }
 
+// Unidade escolhida: texto em itálico com um filete dourado embaixo quando ativa.
 @Composable
-private fun MedidaDoTempo(valor: Long, rotulo: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(valor.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineSmall)
-        Text(rotulo, style = MaterialTheme.typography.labelSmall)
+private fun BotaoUnidade(texto: String, ativo: Boolean, aoClicar: () -> Unit) {
+    Column(
+        Modifier.clickable(onClick = aoClicar).padding(horizontal = 4.dp, vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(texto, style = EstiloApoio, color = if (ativo) Tinta else TintaSuave)
+        Box(
+            Modifier
+                .padding(top = 2.dp)
+                .width(32.dp)
+                .height(1.dp)
+                .background(if (ativo) Ouro else Color.Transparent)
+        )
     }
 }
 
-// Cartão padrão das seções: título em serifa, subtítulo e o conteúdo.
+@Composable
+private fun MedidaDoTempo(valor: Long, rotulo: String, separador: Boolean) {
+    Column(
+        Modifier
+            .drawBehind {
+                if (separador) {
+                    drawLine(
+                        color = Tinta.copy(alpha = 0.18f),
+                        start = Offset(0f, 0f),
+                        end = Offset(0f, size.height),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                }
+            }
+            .padding(horizontal = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(valor.toString().padStart(2, '0'), style = EstiloRelogio)
+        Text(rotulo, style = EstiloRotulo, color = TintaSuave)
+    }
+}
+
+// Seção da página: filete dourado em degradê, título em itálico e o conteúdo, sem caixa.
 @Composable
 internal fun CartaoSecao(titulo: String, subtitulo: String? = null, conteudo: @Composable () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) {
-        Column(Modifier.padding(18.dp)) {
-            Text(titulo, style = MaterialTheme.typography.headlineSmall)
-            if (subtitulo != null) {
-                Text(
-                    subtitulo,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-            }
-            Column(Modifier.fillMaxWidth().padding(top = 12.dp)) { conteudo() }
+    Column(Modifier.fillMaxWidth()) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Brush.horizontalGradient(listOf(Color.Transparent, Ouro, Color.Transparent)))
+        )
+        Text(
+            titulo,
+            style = EstiloTituloSecao,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+        )
+        if (subtitulo != null) {
+            Text(
+                subtitulo,
+                style = EstiloRotulo,
+                color = TintaSuave,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
         }
+        Column(Modifier.fillMaxWidth().padding(top = 16.dp)) { conteudo() }
     }
 }
 
@@ -682,7 +726,8 @@ private fun CartaoClima(
                     FilterChip(
                         selected = humorEu?.id == opcao.id,
                         onClick = { dados.definirHumor(opcao.id) },
-                        label = { Text("${opcao.simbolo} ${opcao.rotulo}") }
+                        label = { Text(opcao.rotulo) },
+                        leadingIcon = { IconeHumor(opcao, tamanho = 18.dp) }
                     )
                 }
             }
@@ -702,7 +747,7 @@ private fun CartaoClima(
         } else {
             recebidas.forEach { carta ->
                 OutlinedButton(onClick = { aoLer(carta) }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                    Text(rotuloComTempo("✉ Cartinha de $nomeOutra", carta.em))
+                    Text(rotuloComTempo("Cartinha de $nomeOutra", carta.em))
                 }
             }
         }
@@ -728,17 +773,21 @@ private fun CartaoClima(
 
 @Composable
 private fun PessoaComHumor(nome: String, humor: Humor?) {
-    val opcao = OPCOES_HUMOR.firstOrNull { it.id == humor?.id }
+    val opcao = opcaoDeHumor(humor?.id)
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(nome, style = MaterialTheme.typography.labelLarge)
-        Text(
-            opcao?.simbolo ?: "—",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
+        Text(nome, style = EstiloApoio, color = Tinta)
+        Box(Modifier.padding(vertical = 8.dp).height(44.dp), contentAlignment = Alignment.Center) {
+            if (opcao != null) {
+                IconeHumor(opcao, tamanho = 44.dp, cor = Tinta)
+            } else {
+                Text("—", style = EstiloApoio, color = TintaSuave)
+            }
+        }
         Text(
             if (opcao != null && humor != null) rotuloComTempo(opcao.rotulo, humor.em) else "Ainda não escolheu",
-            style = MaterialTheme.typography.labelSmall
+            style = EstiloRotulo,
+            color = TintaSuave,
+            textAlign = TextAlign.Center
         )
     }
 }
@@ -748,58 +797,21 @@ private fun PessoaComHumor(nome: String, humor: Humor?) {
 private fun DialogoMapa(eu: Localizacao, outra: Localizacao, nomeEu: String, nomeOutra: String, aoFechar: () -> Unit) {
     val km = distanciaKm(eu.lat, eu.lng, outra.lat, outra.lng)
     Dialog(onDismissRequest = aoFechar, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(Color(0xFFF3EFD9))) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("Vocês no mapa", style = MaterialTheme.typography.headlineSmall)
-                TextButton(onClick = aoFechar) { Text("Fechar") }
-            }
-            AndroidView(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                factory = { ctx ->
-                    WebView(ctx).apply {
-                        settings.javaScriptEnabled = true
-                        loadDataWithBaseURL(
-                            "https://contagemdedias.vercel.app/",
-                            htmlMapa(eu, outra, nomeEu, nomeOutra),
-                            "text/html",
-                            "utf-8",
-                            null
-                        )
-                    }
-                }
+        Column(Modifier.fillMaxSize().papelDoSite().padding(horizontal = 30.dp, vertical = 36.dp)) {
+            Text("Vocês no mapa", style = EstiloTituloSecao, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            MapaNativo(
+                pontos = listOf(PontoMapa(nomeEu, eu.lat, eu.lng), PontoMapa(nomeOutra, outra.lat, outra.lng)),
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 16.dp)
             )
             Text(
                 "Distância em linha reta: ${textoDistancia(km)}. Só o casal vê esta tela.",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(16.dp)
+                style = EstiloApoio,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 14.dp)
             )
+            TextButton(onClick = aoFechar, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Fechar") }
         }
     }
-}
-
-private fun htmlMapa(eu: Localizacao, outra: Localizacao, nomeEu: String, nomeOutra: String): String {
-    fun num(valor: Double) = String.format(Locale.US, "%.6f", valor)
-    fun nome(texto: String) = texto.replace("'", "").replace("<", "").ifBlank { "Você" }
-    return """
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>html,body,#mapa{height:100%;margin:0;background:#D6E2EA}</style></head>
-<body><div id="mapa"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-var a=[${num(eu.lat)},${num(eu.lng)}], b=[${num(outra.lat)},${num(outra.lng)}];
-var m=L.map('mapa');
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(m);
-L.marker(a).addTo(m).bindTooltip('${nome(nomeEu)}',{permanent:true});
-L.marker(b).addTo(m).bindTooltip('${nome(nomeOutra)}',{permanent:true});
-L.polyline([a,b],{color:'#3d6fb0',weight:3,dashArray:'6 8'}).addTo(m);
-m.fitBounds(L.latLngBounds([a,b]).pad(0.35),{maxZoom:15});
-</script></body></html>
-""".trimIndent()
 }
 
 @Composable

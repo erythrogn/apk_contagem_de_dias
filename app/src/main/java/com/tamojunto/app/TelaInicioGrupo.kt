@@ -3,7 +3,6 @@ package com.tamojunto.app
 import android.Manifest
 import android.graphics.Bitmap
 import android.os.Looper
-import android.webkit.WebView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,7 +26,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
@@ -43,7 +41,6 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDateTime
-import java.util.Locale
 
 // Início de um grupo: a mesma página do casal, com as coisas do grupo (como grupo_inicio.js).
 @Composable
@@ -215,9 +212,9 @@ fun TelaInicioGrupo(gid: String) {
     val nomeDe = { uid: String -> pessoas.firstOrNull { it.uid == uid }?.nome.orEmpty().ifBlank { "alguém" } }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier = Modifier.fillMaxSize().padding(12.dp).papelDoSite(),
+        contentPadding = PaddingValues(horizontal = 30.dp, vertical = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(30.dp)
     ) {
         if (contagem != null) {
             item {
@@ -442,17 +439,21 @@ private fun CartaoClimaGrupo(
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             inicio.pessoas.sortedByDescending { it.eu }.forEach { pessoa ->
                 val humor = inicio.humores[pessoa.uid]
-                val opcao = OPCOES_HUMOR.firstOrNull { it.id == humor?.id }
+                val opcao = opcaoDeHumor(humor?.id)
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(pessoa.nome.ifBlank { "?" }, style = MaterialTheme.typography.labelLarge)
-                    Text(
-                        opcao?.simbolo ?: "—",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Text(pessoa.nome.ifBlank { "?" }, style = EstiloApoio, color = Tinta)
+                    Box(Modifier.padding(vertical = 8.dp).height(44.dp), contentAlignment = Alignment.Center) {
+                        if (opcao != null) {
+                            IconeHumor(opcao, tamanho = 44.dp, cor = Tinta)
+                        } else {
+                            Text("—", style = EstiloApoio, color = TintaSuave)
+                        }
+                    }
                     Text(
                         if (opcao != null && humor != null) rotuloComTempo(opcao.rotulo, humor.em) else "Ainda não escolheu",
-                        style = MaterialTheme.typography.labelSmall
+                        style = EstiloRotulo,
+                        color = TintaSuave,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -508,7 +509,8 @@ private fun CartaoClimaGrupo(
                     FilterChip(
                         selected = humorEu?.id == opcao.id,
                         onClick = { aoEscolherHumor(opcao.id) },
-                        label = { Text("${opcao.simbolo} ${opcao.rotulo}") }
+                        label = { Text(opcao.rotulo) },
+                        leadingIcon = { IconeHumor(opcao, tamanho = 18.dp) }
                     )
                 }
             }
@@ -520,7 +522,7 @@ private fun CartaoClimaGrupo(
         } else {
             inicio.cartinhas.forEach { carta ->
                 OutlinedButton(onClick = { aoLer(carta) }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                    Text(rotuloComTempo("✉ Cartinha de ${carta.nomeDe.ifBlank { nomeDe(carta.de) }}", carta.em))
+                    Text(rotuloComTempo("Cartinha de ${carta.nomeDe.ifBlank { nomeDe(carta.de) }}", carta.em))
                 }
             }
         }
@@ -590,62 +592,23 @@ private fun DialogoEscreverCartaGrupo(
     )
 }
 
-// Mapa com todas as pessoas que estão compartilhando (Leaflet e OpenStreetMap, como o mapa do grupo).
+// Mapa com todas as pessoas que estão compartilhando, sem WebView.
 @Composable
 private fun DialogoMapaGrupo(pontos: List<Triple<String, Double, Double>>, aoFechar: () -> Unit) {
     Dialog(onDismissRequest = aoFechar, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(Color(0xFFF3EFD9))) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("Mapa do grupo", style = MaterialTheme.typography.headlineSmall)
-                TextButton(onClick = aoFechar) { Text("Fechar") }
-            }
-            AndroidView(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                factory = { ctx ->
-                    WebView(ctx).apply {
-                        settings.javaScriptEnabled = true
-                        loadDataWithBaseURL(
-                            "https://contagemdedias.vercel.app/",
-                            htmlMapaGrupo(pontos),
-                            "text/html",
-                            "utf-8",
-                            null
-                        )
-                    }
-                }
+        Column(Modifier.fillMaxSize().papelDoSite().padding(horizontal = 30.dp, vertical = 36.dp)) {
+            Text("Mapa do grupo", style = EstiloTituloSecao, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            MapaNativo(
+                pontos = pontos.map { (nome, lat, lng) -> PontoMapa(nome, lat, lng) },
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 16.dp)
             )
             Text(
                 "Só o grupo vê esta tela.",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(16.dp)
+                style = EstiloApoio,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 14.dp)
             )
+            TextButton(onClick = aoFechar, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Fechar") }
         }
     }
-}
-
-private fun htmlMapaGrupo(pontos: List<Triple<String, Double, Double>>): String {
-    fun num(valor: Double) = String.format(Locale.US, "%.6f", valor)
-    fun nome(texto: String) = texto.replace("'", "").replace("<", "").ifBlank { "Pessoa" }
-    val marcadores = pontos.joinToString("\n") { (rotulo, lat, lng) ->
-        "L.marker([${num(lat)},${num(lng)}]).addTo(m).bindTooltip('${nome(rotulo)}',{permanent:true});"
-    }
-    val limites = pontos.joinToString(",") { (_, lat, lng) -> "[${num(lat)},${num(lng)}]" }
-    return """
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>html,body,#mapa{height:100%;margin:0;background:#D6E2EA}</style></head>
-<body><div id="mapa"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-var m=L.map('mapa');
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(m);
-$marcadores
-var pts=[$limites];
-if(pts.length){ m.fitBounds(L.latLngBounds(pts).pad(0.35),{maxZoom:15}); }
-</script></body></html>
-""".trimIndent()
 }

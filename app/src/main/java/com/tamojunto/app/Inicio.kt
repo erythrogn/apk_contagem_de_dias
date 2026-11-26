@@ -270,15 +270,3 @@ fun rotuloComTempo(rotulo: String, quando: Long): String {
 }
 
 fun formatarMilhar(n: Int): String = String.format(Locale("pt", "BR"), "%,d", n)
-
-// Os seis humores do site. Cada um vira um símbolo de tempo, como no site.
-data class OpcaoHumor(val id: String, val rotulo: String, val simbolo: String)
-
-val OPCOES_HUMOR = listOf(
-    OpcaoHumor("feliz", "Feliz", "☀"),
-    OpcaoHumor("apaixonado", "Apaixonado(a)", "♥"),
-    OpcaoHumor("tranquilo", "Tranquilo(a)", "☁"),
-    OpcaoHumor("cansado", "Cansado(a)", "≋"),
-    OpcaoHumor("triste", "Triste", "☂"),
-    OpcaoHumor("estressado", "Estressado(a)", "⚡")
-)

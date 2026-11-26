@@ -133,8 +133,8 @@ private fun CartaNota(nota: Nota, meuSlot: String?) {
                 "lista" -> nota.conteudo.lines()
                     .filter { it.isNotBlank() }
                     .joinToString("\n") { linha ->
-                        if (linha.startsWith("[x]", ignoreCase = true)) "☑ " + linha.drop(3).trim()
-                        else "☐ " + linha.trim()
+                        if (linha.startsWith("[x]", ignoreCase = true)) "[x] " + linha.drop(3).trim()
+                        else "[ ] " + linha.trim()
                     }
                 "carta" -> if (minha) nota.conteudo else "Carta lacrada."
                 else -> nota.conteudo
