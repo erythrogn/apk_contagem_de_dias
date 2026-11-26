@@ -21,6 +21,17 @@ android {
         buildConfigField("String", "SITE_URL", "\"$siteUrl\"")
     }
 
+    // Chave fixa de depuração: o SHA-1 dela é cadastrado no Firebase, então o login Google funciona em
+    // todo APK gerado. Não serve para publicar na Play Store (aí é preciso uma chave de lançamento própria).
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

@@ -10,3 +10,5 @@ local.properties
 # Chaves de assinatura nunca vão para o repositório
 *.jks
 *.keystore
+# Exceção: chave fixa de depuração (SHA-1 cadastrado no Firebase)
+!app/debug.keystore
