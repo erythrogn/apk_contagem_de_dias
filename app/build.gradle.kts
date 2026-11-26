@@ -17,7 +17,7 @@ android {
         versionName = "0.1.0"
 
         // Endereço do site (rotas /api). Fica em gradle.properties, na chave siteUrl.
-        val siteUrl = (project.findProperty("siteUrl") as String?) ?: "https://contagemdedias.vercel.app"
+        val siteUrl = (project.findProperty("siteUrl") as String?) ?: "https://contagem-de-dias.vercel.app"
         buildConfigField("String", "SITE_URL", "\"$siteUrl\"")
     }
 
