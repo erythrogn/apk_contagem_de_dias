@@ -94,7 +94,7 @@ object Servidor {
     private fun executar(caminho: String, montar: (Request.Builder) -> Request.Builder): Pair<Int, RespostaServidor> {
         val pedido = montar(Request.Builder().url(base + caminho)).build()
         cliente.newCall(pedido).execute().use { r ->
-            val json = runCatching { JSONObject(r.body.string()) }.getOrNull()
+            val json = runCatching { JSONObject(r.body?.string().orEmpty()) }.getOrNull()
             val ok = r.isSuccessful && json?.optBoolean("ok") == true
             val msg = json?.optString("msg").orEmpty().ifBlank {
                 if (ok) "Pronto." else "Não consegui concluir. Tente de novo."
