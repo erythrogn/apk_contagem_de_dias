@@ -53,7 +53,7 @@ fun TelaLogin() {
                 }
         } catch (e: ApiException) {
             entrando = false
-            erro = "Entrada cancelada ou sem conexão."
+            erro = mensagemDeErroGoogle(e.statusCode)
         }
     }
 
@@ -62,7 +62,7 @@ fun TelaLogin() {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "tamo junto", style = MaterialTheme.typography.headlineLarge)
+        Text(text = "Contagem de Dias", style = MaterialTheme.typography.headlineLarge)
         Text(text = "Entre com a sua conta Google.", modifier = Modifier.padding(top = 8.dp, bottom = 24.dp))
         Button(
             enabled = !entrando,
@@ -78,4 +78,12 @@ fun TelaLogin() {
             Text(text = it, modifier = Modifier.padding(top = 16.dp))
         }
     }
+}
+
+// Traduz o código de erro do Google Sign-In em uma instrução que dá para seguir.
+private fun mensagemDeErroGoogle(codigo: Int): String = when (codigo) {
+    10 -> "Falta cadastrar a impressão digital SHA-1 do app no Firebase. Veja o README."
+    12501 -> "Entrada cancelada."
+    7 -> "Sem conexão com a internet."
+    else -> "Não consegui entrar (código $codigo)."
 }

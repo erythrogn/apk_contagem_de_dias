@@ -1,6 +1,6 @@
-# tamo junto (Android)
+# Contagem de Dias (Android)
 
-App nativo em Kotlin e Jetpack Compose para o "tamo junto". Usa o mesmo projeto Firebase do site.
+App nativo em Kotlin e Jetpack Compose para o Contagem de Dias. Usa o mesmo projeto Firebase do site.
 
 ## Antes de compilar
 

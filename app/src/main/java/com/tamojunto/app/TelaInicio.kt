@@ -45,7 +45,7 @@ fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
             else -> {
                 val agora = LocalDateTime.now(ZoneId.of("America/Belem"))
                 val dias = Duration.between(LocalDateTime.of(inicio, LocalTime.of(0, 1)), agora).toDays()
-                Text("tamo junto", style = MaterialTheme.typography.headlineSmall)
+                Text("Contagem de Dias", style = MaterialTheme.typography.headlineSmall)
                 Text(
                     "$dias",
                     style = MaterialTheme.typography.displayLarge,
