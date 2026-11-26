@@ -86,7 +86,92 @@ private fun JSONObject.paraHoje(): ResumoHoje = ResumoHoje(
     esperandoVoce = optJSONObject("esperando_voce")?.let { PedidoAtencao(it.texto("titulo"), it.texto("quem")) }
 )
 
+data class GrupoResumo(val gid: String, val nome: String, val tipo: String, val total: Int)
+data class PessoaLocal(
+    val uid: String,
+    val nome: String,
+    val eu: Boolean,
+    val compartilha: Boolean,
+    val lat: Double?,
+    val lng: Double?,
+    val distanciaM: Double?
+)
+data class FotoGrupo(val fid: String, val url: String, val por: String, val vista: Boolean, val podeApagar: Boolean)
+data class CartinhaGrupo(val cid: String, val de: String, val nomeDe: String, val texto: String, val em: Long)
+data class EnviadaGrupo(val cid: String, val para: String, val nomePara: String, val em: Long)
+
+data class GrupoInicio(
+    val gid: String,
+    val nome: String,
+    val eu: String,
+    val dataIso: String,
+    val dataExtenso: String,
+    val laco: LacoApp?,
+    val hoje: ResumoHoje?,
+    val humores: Map<String, Humor>,
+    val pessoas: List<PessoaLocal>,
+    val euCompartilho: Boolean,
+    val cartinhas: List<CartinhaGrupo>,
+    val enviadas: List<EnviadaGrupo>,
+    val fotos: List<FotoGrupo>
+)
+
+private fun JSONObject.opcionalDouble(campo: String): Double? = if (isNull(campo)) null else getDouble(campo)
+
 object InicioServidor {
+    suspend fun carregarGrupos(): List<GrupoResumo> {
+        val lista = Servidor.obter("/api/grupos").corpo?.optJSONArray("grupos") ?: return emptyList()
+        return lista.objetos().map { GrupoResumo(it.texto("gid"), it.texto("nome"), it.texto("tipo"), it.inteiro("total")) }
+    }
+
+    // Início de um grupo. O servidor manda os momentos em segundos; aqui viram milissegundos, como no casal.
+    suspend fun carregarGrupo(gid: String): Pair<GrupoInicio?, String> {
+        val r = Servidor.obter("/api/grupos/$gid/inicio")
+        val j = r.corpo
+        if (!r.ok || j == null) return null to r.msg
+        val inicio = j.getJSONObject("inicio")
+        val loc = j.getJSONObject("localizacoes")
+        val pessoas = loc.optJSONArray("pessoas")?.objetos()?.map { p ->
+            PessoaLocal(
+                p.texto("uid"),
+                p.texto("nome"),
+                p.optBoolean("eu"),
+                p.optBoolean("compartilha"),
+                p.opcionalDouble("lat"),
+                p.opcionalDouble("lng"),
+                p.opcionalDouble("distancia_m")
+            )
+        }.orEmpty()
+        val humoresJson = j.optJSONObject("humores")
+        val humores = humoresJson?.keys()?.asSequence()?.associateWith { chave ->
+            val h = humoresJson.getJSONObject(chave)
+            Humor(h.texto("id"), h.optLong("em") * 1000)
+        }.orEmpty()
+        return GrupoInicio(
+            gid = gid,
+            nome = j.texto("nome"),
+            eu = j.texto("eu"),
+            dataIso = inicio.texto("data_iso"),
+            dataExtenso = inicio.texto("data_extenso"),
+            laco = if (j.isNull("laco")) null else j.getJSONObject("laco").paraLaco(),
+            hoje = if (j.isNull("hoje")) null else j.getJSONObject("hoje").paraHoje(),
+            humores = humores,
+            pessoas = pessoas,
+            euCompartilho = loc.optBoolean("eu_compartilho"),
+            cartinhas = j.optJSONArray("cartinhas")?.objetos()?.map {
+                CartinhaGrupo(it.texto("cid"), it.texto("de"), it.texto("de_nome"), it.texto("texto"), it.optLong("em") * 1000)
+            }.orEmpty(),
+            enviadas = j.optJSONArray("enviadas")?.objetos()?.map {
+                EnviadaGrupo(it.texto("cid"), it.texto("para"), it.texto("para_nome"), it.optLong("em") * 1000)
+            }.orEmpty(),
+            fotos = j.optJSONArray("fotos")?.objetos()?.map {
+                FotoGrupo(it.texto("fid"), it.texto("url"), it.texto("por"), it.optBoolean("vista"), it.optBoolean("pode_apagar"))
+            }.orEmpty()
+        ) to ""
+    }
+}
+
+object InicioServidorCasal {
     // Devolve os dados, ou a mensagem do servidor para mostrar na tela.
     suspend fun carregar(): Pair<InicioApp?, String> {
         val r = Servidor.obter("/api/inicio")

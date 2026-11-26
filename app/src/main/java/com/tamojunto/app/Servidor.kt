@@ -70,6 +70,19 @@ object Servidor {
 
     suspend fun obter(caminho: String): RespostaServidor = enviar(caminho) { it.get() }
 
+    // Envia uma foto junto com outros campos do formulário (o grupo precisa do gid).
+    suspend fun enviarFotoComCampos(
+        caminho: String,
+        campos: Map<String, String>,
+        bytes: ByteArray,
+        tipo: String
+    ): RespostaServidor = enviar(caminho) {
+        val corpo = MultipartBody.Builder().setType(MultipartBody.FORM)
+        campos.forEach { (nome, valor) -> corpo.addFormDataPart(nome, valor) }
+        corpo.addFormDataPart("foto", "foto", bytes.toRequestBody(tipo.toMediaType()))
+        it.post(corpo.build())
+    }
+
     suspend fun enviarFoto(caminho: String, bytes: ByteArray, tipo: String): RespostaServidor = enviar(caminho) {
         val corpo = MultipartBody.Builder()
             .setType(MultipartBody.FORM)

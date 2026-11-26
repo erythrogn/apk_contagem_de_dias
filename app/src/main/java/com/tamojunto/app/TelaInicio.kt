@@ -9,6 +9,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -47,8 +49,52 @@ import java.util.Locale
 import kotlin.math.min
 
 // Início: a mesma página do site, com a contagem, o Laço, o clima entre vocês e as cartinhas.
+// Seletor de espaço (casal ou grupo) no topo, e o conteúdo do espaço escolhido.
 @Composable
 fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
+    var gidEscolhido by rememberSaveable { mutableStateOf<String?>(null) }
+    var grupos by remember { mutableStateOf<List<GrupoResumo>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            grupos = InicioServidor.carregarGrupos()
+            delay(60_000)
+        }
+    }
+    // Sem casal, o primeiro grupo abre sozinho.
+    val gidAtivo = gidEscolhido ?: if (dados.casalId == null) grupos.firstOrNull()?.gid else null
+
+    Column(Modifier.fillMaxSize()) {
+        if (dados.casalId != null || grupos.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (dados.casalId != null) {
+                    FilterChip(selected = gidAtivo == null, onClick = { gidEscolhido = null }, label = { Text("Casal") })
+                }
+                grupos.forEach { grupo ->
+                    FilterChip(
+                        selected = gidAtivo == grupo.gid,
+                        onClick = { gidEscolhido = grupo.gid },
+                        label = { Text(grupo.nome.ifBlank { "Grupo" }) }
+                    )
+                }
+            }
+        }
+        Box(Modifier.fillMaxSize().weight(1f)) {
+            if (gidAtivo == null) {
+                InicioDoCasal(dados, usuario)
+            } else {
+                TelaInicioGrupo(gidAtivo)
+            }
+        }
+    }
+}
+
+@Composable
+private fun InicioDoCasal(dados: DadosDoCasal, usuario: FirebaseUser) {
     val contexto = LocalContext.current
     val escopo = rememberCoroutineScope()
     val clienteLocal = remember(contexto) { LocationServices.getFusedLocationProviderClient(contexto) }
@@ -77,7 +123,7 @@ fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
 
     fun atualizarInicio() {
         escopo.launch {
-            val (novos, erro) = InicioServidor.carregar()
+            val (novos, erro) = InicioServidorCasal.carregar()
             if (novos != null) {
                 inicio = novos
                 erroInicio = ""
@@ -214,7 +260,7 @@ fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
         item {
             CabecalhoContagem(
                 contagem = contagem,
-                desde = inicio?.dataExtenso?.ifBlank { null } ?: dataBr(inicioIso),
+                linhaDeData = "desde " + (inicio?.dataExtenso?.ifBlank { null } ?: dataBr(inicioIso)),
                 unidade = unidade,
                 aoMudar = { unidade = it }
             )
@@ -315,11 +361,11 @@ fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
 
 // Número grande, unidade, composição e relógio: o topo da página do site.
 @Composable
-private fun CabecalhoContagem(contagem: Contagem, desde: String, unidade: String, aoMudar: (String) -> Unit) {
+internal fun CabecalhoContagem(contagem: Contagem, linhaDeData: String, unidade: String, aoMudar: (String) -> Unit) {
     val (numero, palavra) = numeroDaUnidade(contagem, unidade)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            "desde $desde",
+            linhaDeData,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -356,7 +402,7 @@ private fun MedidaDoTempo(valor: Long, rotulo: String) {
 
 // Cartão padrão das seções: título em serifa, subtítulo e o conteúdo.
 @Composable
-private fun CartaoSecao(titulo: String, subtitulo: String? = null, conteudo: @Composable () -> Unit) {
+internal fun CartaoSecao(titulo: String, subtitulo: String? = null, conteudo: @Composable () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) {
         Column(Modifier.padding(18.dp)) {
             Text(titulo, style = MaterialTheme.typography.headlineSmall)
@@ -374,7 +420,7 @@ private fun CartaoSecao(titulo: String, subtitulo: String? = null, conteudo: @Co
 }
 
 @Composable
-private fun CartaoHoje(hoje: ResumoHoje) {
+internal fun CartaoHoje(hoje: ResumoHoje) {
     val pede = hoje.esperandoVoce
     val missao = hoje.missao
     CartaoSecao(
@@ -497,7 +543,7 @@ private fun VisorFoto(foto: FotoCasal, aoApagar: () -> Unit, aoFechar: () -> Uni
 }
 
 @Composable
-private fun CartaoLaco(laco: LacoApp) {
+internal fun CartaoLaco(laco: LacoApp) {
     var aberto by rememberSaveable { mutableStateOf(false) }
     val rotuloFase = if (laco.prestigio) "${laco.fase} · Prestígio" else laco.fase
     CartaoSecao("Laço", "Nível ${laco.nivel} de ${laco.total}") {
@@ -811,7 +857,7 @@ private fun DialogoEscreverCartinha(nomeOutra: String, aoEnviar: (String) -> Uni
 }
 
 // Uma leitura da posição, usada ao ligar o compartilhamento.
-private suspend fun lerLocalizacao(contexto: Context): Location? = try {
+internal suspend fun lerLocalizacao(contexto: Context): Location? = try {
     LocationServices.getFusedLocationProviderClient(contexto)
         .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
         .await()
