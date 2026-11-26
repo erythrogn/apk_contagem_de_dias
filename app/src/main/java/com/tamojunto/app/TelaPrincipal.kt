@@ -68,7 +68,7 @@ fun TelaPrincipal(usuario: FirebaseUser) {
         Box(modifier = Modifier.padding(espaco)) {
             when (aba) {
                 Aba.INICIO -> TelaInicio(dados, usuario)
-                Aba.NOTAS -> TelaNotas()
+                Aba.NOTAS -> TelaNotas(dados)
                 Aba.FILMES -> TelaFilmes(dados)
                 Aba.COISINHAS -> TelaCoisinhas(dados)
                 Aba.MAIS -> TelaMais(dados, usuario)

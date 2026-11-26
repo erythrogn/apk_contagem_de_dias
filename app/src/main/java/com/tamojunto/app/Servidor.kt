@@ -62,8 +62,9 @@ object Servidor {
         synchronized(cookies) { cookies.clear() }
     }
 
-    suspend fun postJson(caminho: String, dados: JSONObject): RespostaServidor =
-        enviar(caminho) { it.post(dados.toString().toRequestBody(tipoJson)) }
+    // `repetirSeSessaoExpirou = false` evita nova tentativa em rotas de senha (cada tentativa conta para o bloqueio).
+    suspend fun postJson(caminho: String, dados: JSONObject, repetirSeSessaoExpirou: Boolean = true): RespostaServidor =
+        enviar(caminho, repetirSeSessaoExpirou) { it.post(dados.toString().toRequestBody(tipoJson)) }
 
     suspend fun apagar(caminho: String): RespostaServidor = enviar(caminho) { it.delete() }
 
@@ -75,12 +76,16 @@ object Servidor {
         it.post(corpo)
     }
 
-    private suspend fun enviar(caminho: String, montar: (Request.Builder) -> Request.Builder): RespostaServidor =
+    private suspend fun enviar(
+        caminho: String,
+        repetir: Boolean = true,
+        montar: (Request.Builder) -> Request.Builder
+    ): RespostaServidor =
         withContext(Dispatchers.IO) {
             try {
                 if (!logado && !entrar()) return@withContext RespostaServidor(false, "Entre de novo para continuar.", null)
                 var resultado = executar(caminho, montar)
-                if (resultado.first == 401) {
+                if (resultado.first == 401 && repetir) {
                     // A sessão expirou: entra de novo com um token novo e tenta mais uma vez.
                     logado = false
                     if (entrar()) resultado = executar(caminho, montar)

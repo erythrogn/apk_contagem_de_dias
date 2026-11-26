@@ -5,11 +5,14 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 // Um item de filme, série, jogo ou coisinha, lido do Realtime Database (mesmos campos do site).
@@ -51,6 +54,37 @@ data class Item(
     }
 }
 
+// Uma nota do Bloco de Notas. `autor` é o slot da pessoa: "pessoa1" ou "pessoa2".
+data class Nota(
+    val chave: String,
+    val titulo: String,
+    val tipo: String,
+    val autor: String,
+    val conteudo: String,
+    val resposta: String,
+    val criadoEm: Long,
+    val data: String
+) {
+    companion object {
+        fun de(chave: String, s: DataSnapshot): Nota {
+            fun texto(campo: String): String = s.child(campo).value?.toString() ?: ""
+            val criado = s.child("createdAt").getValue(Long::class.java)
+                ?: s.child("timestamp").getValue(Long::class.java)
+                ?: 0L
+            return Nota(
+                chave = chave,
+                titulo = texto("title"),
+                tipo = texto("type").ifBlank { "texto" },
+                autor = texto("author"),
+                conteudo = texto("content"),
+                resposta = texto("answer"),
+                criadoEm = criado,
+                data = texto("createdDate")
+            )
+        }
+    }
+}
+
 // "2024-05-01" -> "01/05/2024". Se não for uma data ISO, devolve o texto original.
 fun dataBr(iso: String): String = try {
     LocalDate.parse(iso).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
@@ -58,7 +92,7 @@ fun dataBr(iso: String): String = try {
     iso
 }
 
-// Lê o casal do usuário e as listas do casal em tempo real. Só leitura, exceto marcar coisinha.
+// Lê o casal do usuário e as listas do casal em tempo real.
 class DadosDoCasal(private val uid: String) {
     private val banco = FirebaseDatabase.getInstance()
 
@@ -68,11 +102,15 @@ class DadosDoCasal(private val uid: String) {
         private set
     var dataNamoro by mutableStateOf<String?>(null)
         private set
+    // Slot desta pessoa no casal ("pessoa1" ou "pessoa2"), usado como autor das notas.
+    var meuSlot by mutableStateOf<String?>(null)
+        private set
 
     val filmes: SnapshotStateList<Item> = mutableStateListOf()
     val series: SnapshotStateList<Item> = mutableStateListOf()
     val jogos: SnapshotStateList<Item> = mutableStateListOf()
     val coisinhas: SnapshotStateList<Item> = mutableStateListOf()
+    val notas: SnapshotStateList<Nota> = mutableStateListOf()
 
     private var removerUsuario: (() -> Unit)? = null
     private val removeresCasal = mutableListOf<() -> Unit>()
@@ -96,21 +134,51 @@ class DadosDoCasal(private val uid: String) {
         banco.getReference("casais/$id/coisinhas/${item.chave}/done").setValue(!item.feito)
     }
 
+    // Grava uma nota do tipo texto ou lista. Devolve null se ainda não dá para salvar (sem casal ou slot).
+    fun criarNota(titulo: String, conteudo: String, tipo: String): String? {
+        val id = casalId ?: return null
+        val slot = meuSlot ?: return null
+        val ref = banco.getReference("casais/$id/bloco").push()
+        ref.setValue(
+            mapOf(
+                "title" to titulo,
+                "type" to tipo,
+                "author" to slot,
+                "content" to conteudo,
+                "answer" to "",
+                "createdDate" to LocalDate.now(ZoneId.of("America/Belem")).toString(),
+                "createdBy" to (FirebaseAuth.getInstance().currentUser?.email ?: ""),
+                "createdByUid" to uid,
+                "createdAt" to ServerValue.TIMESTAMP
+            )
+        )
+        return ref.key
+    }
+
     private fun trocarCasal(id: String?) {
         removeresCasal.forEach { it() }
         removeresCasal.clear()
         casalId = id
-        filmes.clear(); series.clear(); jogos.clear(); coisinhas.clear()
+        filmes.clear(); series.clear(); jogos.clear(); coisinhas.clear(); notas.clear()
         dataNamoro = null
+        meuSlot = null
         if (id == null) return
 
         removeresCasal += ouvir("casais/$id/data_namoro") { s ->
             dataNamoro = s.getValue(String::class.java)
         }
+        removeresCasal += ouvir("casais/$id/pessoas") { s ->
+            meuSlot = s.child(uid).getValue(String::class.java)
+        }
         removeresCasal += ouvirLista("casais/$id/filmes", filmes, "filmes")
         removeresCasal += ouvirLista("casais/$id/series", series, "series")
         removeresCasal += ouvirLista("casais/$id/jogos", jogos, "jogos")
         removeresCasal += ouvirLista("casais/$id/coisinhas", coisinhas, "coisinhas")
+        removeresCasal += ouvir("casais/$id/bloco") { s ->
+            notas.clear()
+            s.children.forEach { filho -> notas.add(Nota.de(filho.key ?: "", filho)) }
+            notas.sortByDescending { it.criadoEm }
+        }
     }
 
     private fun ouvirLista(caminho: String, destino: SnapshotStateList<Item>, secao: String): () -> Unit =
