@@ -117,7 +117,12 @@ object Servidor {
             val json = runCatching { JSONObject(r.body?.string().orEmpty()) }.getOrNull()
             val ok = r.isSuccessful && json?.optBoolean("ok") == true
             val msg = json?.optString("msg").orEmpty().ifBlank {
-                if (ok) "Pronto." else "Não consegui concluir. Tente de novo."
+                when {
+                    ok -> "Pronto."
+                    // Sem JSON, a resposta veio de fora da aplicação (ex.: tempo esgotado no servidor).
+                    json == null -> "O servidor respondeu com erro ${r.code}. Tente de novo."
+                    else -> "Não consegui concluir. Tente de novo."
+                }
             }
             return r.code to RespostaServidor(ok, msg, json)
         }
