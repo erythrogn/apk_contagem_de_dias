@@ -1,11 +1,15 @@
 package com.tamojunto.app
 
-import android.annotation.SuppressLint
 import android.Manifest
 import android.content.Context
 import android.location.Location
+import android.os.Looper
+import android.webkit.WebView
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -17,11 +21,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.firebase.auth.FirebaseUser
@@ -40,6 +51,12 @@ import kotlin.math.min
 fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
     val contexto = LocalContext.current
     val escopo = rememberCoroutineScope()
+    val clienteLocal = remember(contexto) { LocationServices.getFusedLocationProviderClient(contexto) }
+    val pedidoLocal = remember {
+        LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 60_000L)
+            .setMinUpdateDistanceMeters(50f)
+            .build()
+    }
     var inicio by remember { mutableStateOf<InicioApp?>(null) }
     var erroInicio by remember { mutableStateOf("") }
     var agora by remember { mutableStateOf(LocalDateTime.now(FUSO_BELEM)) }
@@ -48,6 +65,27 @@ fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
     var escrevendo by rememberSaveable { mutableStateOf(false) }
     var aviso by remember { mutableStateOf("") }
     var pegandoLocal by remember { mutableStateOf(false) }
+    var visor by remember { mutableStateOf<FotoCasal?>(null) }
+    var apagarFoto by remember { mutableStateOf<FotoCasal?>(null) }
+    var mapaAberto by rememberSaveable { mutableStateOf(false) }
+    var enviandoFoto by remember { mutableStateOf(false) }
+    var avisoFoto by remember { mutableStateOf("") }
+
+    val eu = inicio?.eu?.ifBlank { null } ?: dados.meuSlot ?: "pessoa1"
+    val outra = if (eu == "pessoa1") "pessoa2" else "pessoa1"
+    val compartilhando = dados.localizacoes[eu]?.ativo == true
+
+    fun atualizarInicio() {
+        escopo.launch {
+            val (novos, erro) = InicioServidor.carregar()
+            if (novos != null) {
+                inicio = novos
+                erroInicio = ""
+            } else {
+                erroInicio = erro
+            }
+        }
+    }
 
     // Relógio: a contagem anda a cada segundo, como no site.
     LaunchedEffect(Unit) {
@@ -59,14 +97,34 @@ fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
     // Dados que o servidor calcula: ao entrar e a cada minuto.
     LaunchedEffect(dados.casalId) {
         while (dados.casalId != null) {
-            val (novos, erro) = InicioServidor.carregar()
-            if (novos != null) {
-                inicio = novos
-                erroInicio = ""
-            } else {
-                erroInicio = erro
-            }
+            atualizarInicio()
             delay(60_000)
+        }
+    }
+
+    // Compartilhamento contínuo: enquanto estiver ligado, o aparelho manda a posição quando anda 50 m
+    // (ou a cada minuto), como o site. Ao desligar, a posição é retirada do ar.
+    DisposableEffect(compartilhando) {
+        if (!compartilhando) {
+            onDispose { }
+        } else {
+            val retorno = object : LocationCallback() {
+                override fun onLocationResult(resultado: LocationResult) {
+                    resultado.lastLocation?.let { dados.atualizarLocalizacao(it.latitude, it.longitude) }
+                }
+            }
+            try {
+                clienteLocal.requestLocationUpdates(pedidoLocal, retorno, Looper.getMainLooper())
+            } catch (erro: SecurityException) {
+                aviso = "Sem permissão de localização. Libere no aparelho para compartilhar."
+            }
+            onDispose {
+                try {
+                    clienteLocal.removeLocationUpdates(retorno)
+                } catch (erro: SecurityException) {
+                    // Sem permissão, nada estava sendo enviado.
+                }
+            }
         }
     }
 
@@ -86,7 +144,24 @@ fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
                 }
             }
         } else {
-            aviso = "Sem permissão de localização. Libere no aparelho para ver a distância."
+            aviso = "Sem permissão de localização. Libere no aparelho para compartilhar."
+        }
+    }
+
+    val pegarFoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            escopo.launch {
+                enviandoFoto = true
+                val arquivo = lerFoto(contexto, uri)
+                avisoFoto = if (arquivo == null) {
+                    "Não consegui ler esta foto."
+                } else {
+                    val resposta = Servidor.enviarFoto("/api/config/fotos", arquivo.first, arquivo.second)
+                    if (resposta.ok) "" else resposta.msg
+                }
+                enviandoFoto = false
+                atualizarInicio()
+            }
         }
     }
 
@@ -121,8 +196,6 @@ fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
         return
     }
 
-    val eu = inicio?.eu?.ifBlank { null } ?: dados.meuSlot ?: "pessoa1"
-    val outra = if (eu == "pessoa1") "pessoa2" else "pessoa1"
     val nomeEu = inicio?.nomes?.get(eu).orEmpty().ifBlank { "Você" }
     val nomeOutra = inicio?.nomes?.get(outra).orEmpty().ifBlank { "Parceiro(a)" }
     val hojeIso = LocalDate.now(FUSO_BELEM).toString()
@@ -130,6 +203,8 @@ fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
         .filter { !it.feito && it.dataIso.isNotBlank() && it.dataIso >= hojeIso }
         .sortedBy { it.dataIso }
         .take(3)
+    val locEu = dados.localizacoes[eu]?.takeIf { it.ativo }
+    val locOutra = dados.localizacoes[outra]?.takeIf { it.ativo }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -149,7 +224,17 @@ fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
         }
         inicio?.hoje?.let { hoje -> item { CartaoHoje(hoje) } }
         item { CartaoProximas(proximas) }
-        item { CartaoFotos(inicio?.fotos.orEmpty()) }
+        item {
+            CartaoFotos(
+                fotos = inicio?.fotos.orEmpty(),
+                enviando = enviandoFoto,
+                aviso = avisoFoto,
+                aoAdicionar = {
+                    pegarFoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+                aoAbrir = { visor = it }
+            )
+        }
         inicio?.laco?.let { laco -> item { CartaoLaco(laco) } }
         item {
             CartaoClima(
@@ -160,9 +245,18 @@ fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
                 nomeOutra = nomeOutra,
                 aviso = aviso,
                 pegandoLocal = pegandoLocal,
-                aoPedirLocal = {
-                    pedirLocal.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                compartilhando = compartilhando,
+                aoAlternarCompartilhar = { ligar ->
+                    if (ligar) {
+                        pedirLocal.launch(
+                            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+                        )
+                    } else {
+                        dados.pararLocalizacao()
+                    }
                 },
+                podeMapa = locEu != null && locOutra != null,
+                aoVerMapa = { mapaAberto = true },
                 aoLer = { lendo = it },
                 aoEscrever = { escrevendo = true }
             )
@@ -184,6 +278,37 @@ fun TelaInicio(dados: DadosDoCasal, usuario: FirebaseUser) {
             nomeOutra = nomeOutra,
             aoEnviar = { dados.enviarCartinha(it) },
             aoFechar = { escrevendo = false }
+        )
+    }
+    visor?.let { foto ->
+        VisorFoto(
+            foto = foto,
+            aoApagar = { apagarFoto = foto },
+            aoFechar = { visor = null }
+        )
+    }
+    apagarFoto?.let { foto ->
+        DialogoConfirmar(
+            titulo = "Apagar esta foto?",
+            texto = "Ela some da página inicial de vocês.",
+            rotuloConfirmar = "Apagar",
+            aoConfirmar = {
+                escopo.launch {
+                    Servidor.apagar("/api/config/fotos/${foto.nome}")
+                    visor = null
+                    atualizarInicio()
+                }
+            },
+            aoFechar = { apagarFoto = null }
+        )
+    }
+    if (mapaAberto && locEu != null && locOutra != null) {
+        DialogoMapa(
+            eu = locEu,
+            outra = locOutra,
+            nomeEu = nomeEu,
+            nomeOutra = nomeOutra,
+            aoFechar = { mapaAberto = false }
         )
     }
 }
@@ -314,23 +439,58 @@ private fun CartaoProximas(proximas: List<Item>) {
 }
 
 @Composable
-private fun CartaoFotos(fotos: List<String>) {
-    CartaoSecao("Fotos de vocês", "Deslize para ver outras fotos.") {
+private fun CartaoFotos(
+    fotos: List<FotoCasal>,
+    enviando: Boolean,
+    aviso: String,
+    aoAdicionar: () -> Unit,
+    aoAbrir: (FotoCasal) -> Unit
+) {
+    CartaoSecao("Fotos de vocês", "Toque em uma foto para ver em tela cheia.") {
         if (fotos.isEmpty()) {
-            Text(
-                "Nenhuma foto ainda. Adicione fotos no site, em Configurações.",
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Text("Nenhuma foto ainda.", style = MaterialTheme.typography.bodyMedium)
         } else {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(fotos) { url ->
+                items(fotos, key = { it.nome }) { foto ->
                     AsyncImage(
-                        model = url,
+                        model = foto.url,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(width = 220.dp, height = 280.dp).clip(RoundedCornerShape(4.dp))
+                        modifier = Modifier
+                            .size(width = 220.dp, height = 280.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { aoAbrir(foto) }
                     )
                 }
+            }
+        }
+        OutlinedButton(
+            onClick = aoAdicionar,
+            enabled = !enviando,
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+        ) {
+            Text(if (enviando) "Enviando foto…" else "Adicionar foto")
+        }
+        if (aviso.isNotBlank()) {
+            Text(aviso, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
+        }
+    }
+}
+
+// Foto em tela cheia, com apagar (como no site).
+@Composable
+private fun VisorFoto(foto: FotoCasal, aoApagar: () -> Unit, aoFechar: () -> Unit) {
+    Dialog(onDismissRequest = aoFechar, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            AsyncImage(
+                model = foto.url,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+            )
+            Row(Modifier.align(Alignment.TopEnd).padding(8.dp)) {
+                TextButton(onClick = aoApagar) { Text("Apagar", color = Color.White) }
+                TextButton(onClick = aoFechar) { Text("Fechar", color = Color.White) }
             }
         }
     }
@@ -400,7 +560,10 @@ private fun CartaoClima(
     nomeOutra: String,
     aviso: String,
     pegandoLocal: Boolean,
-    aoPedirLocal: () -> Unit,
+    compartilhando: Boolean,
+    aoAlternarCompartilhar: (Boolean) -> Unit,
+    podeMapa: Boolean,
+    aoVerMapa: () -> Unit,
     aoLer: (Cartinha) -> Unit,
     aoEscrever: () -> Unit
 ) {
@@ -429,7 +592,7 @@ private fun CartaoClima(
                     val situacao = if (km < 0.05) "Vocês estão no mesmo lugar" else "Vocês estão separados"
                     "$situacao · atualizado ${tempoAtras(min(locEu.em, locOutra.em))}"
                 }
-                locEu == null -> "Compartilhe sua localização para ver a distância entre vocês."
+                locEu == null -> "Ligue o compartilhamento para ver a distância entre vocês."
                 else -> "$nomeOutra ainda não compartilhou a localização."
             }
             Text(
@@ -438,18 +601,24 @@ private fun CartaoClima(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 4.dp)
             )
-            OutlinedButton(
-                onClick = aoPedirLocal,
-                enabled = !pegandoLocal,
-                modifier = Modifier.padding(top = 8.dp)
+            Row(
+                Modifier.fillMaxWidth().padding(top = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
-                Text(
-                    when {
-                        pegandoLocal -> "Lendo sua posição…"
-                        locEu == null -> "Ativar minha localização"
-                        else -> "Atualizar minha localização"
-                    }
+                Text("Compartilhar minha localização", style = MaterialTheme.typography.labelLarge)
+                Switch(
+                    checked = compartilhando,
+                    onCheckedChange = aoAlternarCompartilhar,
+                    enabled = !pegandoLocal,
+                    modifier = Modifier.padding(start = 8.dp)
                 )
+            }
+            if (pegandoLocal) {
+                Text("Lendo sua posição…", style = MaterialTheme.typography.bodySmall)
+            }
+            OutlinedButton(onClick = aoVerMapa, enabled = podeMapa, modifier = Modifier.padding(top = 8.dp)) {
+                Text("Ver no mapa")
             }
             if (aviso.isNotBlank()) {
                 Text(aviso, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
@@ -528,6 +697,65 @@ private fun PessoaComHumor(nome: String, humor: Humor?) {
     }
 }
 
+// Mapa com os dois pontos e a linha entre eles (Leaflet e OpenStreetMap, como no site).
+@Composable
+private fun DialogoMapa(eu: Localizacao, outra: Localizacao, nomeEu: String, nomeOutra: String, aoFechar: () -> Unit) {
+    val km = distanciaKm(eu.lat, eu.lng, outra.lat, outra.lng)
+    Dialog(onDismissRequest = aoFechar, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(Modifier.fillMaxSize().background(Color(0xFFF3EFD9))) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Vocês no mapa", style = MaterialTheme.typography.headlineSmall)
+                TextButton(onClick = aoFechar) { Text("Fechar") }
+            }
+            AndroidView(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                factory = { ctx ->
+                    WebView(ctx).apply {
+                        settings.javaScriptEnabled = true
+                        loadDataWithBaseURL(
+                            "https://contagemdedias.vercel.app/",
+                            htmlMapa(eu, outra, nomeEu, nomeOutra),
+                            "text/html",
+                            "utf-8",
+                            null
+                        )
+                    }
+                }
+            )
+            Text(
+                "Distância em linha reta: ${textoDistancia(km)}. Só o casal vê esta tela.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(16.dp)
+            )
+        }
+    }
+}
+
+private fun htmlMapa(eu: Localizacao, outra: Localizacao, nomeEu: String, nomeOutra: String): String {
+    fun num(valor: Double) = String.format(Locale.US, "%.6f", valor)
+    fun nome(texto: String) = texto.replace("'", "").replace("<", "").ifBlank { "Você" }
+    return """
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>html,body,#mapa{height:100%;margin:0;background:#D6E2EA}</style></head>
+<body><div id="mapa"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+var a=[${num(eu.lat)},${num(eu.lng)}], b=[${num(outra.lat)},${num(outra.lng)}];
+var m=L.map('mapa');
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(m);
+L.marker(a).addTo(m).bindTooltip('${nome(nomeEu)}',{permanent:true});
+L.marker(b).addTo(m).bindTooltip('${nome(nomeOutra)}',{permanent:true});
+L.polyline([a,b],{color:'#3d6fb0',weight:3,dashArray:'6 8'}).addTo(m);
+m.fitBounds(L.latLngBounds([a,b]).pad(0.35),{maxZoom:15});
+</script></body></html>
+""".trimIndent()
+}
+
 @Composable
 private fun DialogoLerCartinha(carta: Cartinha, nomeDe: String, aoFechar: () -> Unit) {
     AlertDialog(
@@ -582,8 +810,7 @@ private fun DialogoEscreverCartinha(nomeOutra: String, aoEnviar: (String) -> Uni
     )
 }
 
-// Pede uma leitura única da posição (o site atualiza enquanto a pessoa quiser; aqui é ao tocar no botão).
-@SuppressLint("MissingPermission")
+// Uma leitura da posição, usada ao ligar o compartilhamento.
 private suspend fun lerLocalizacao(contexto: Context): Location? = try {
     LocationServices.getFusedLocationProviderClient(contexto)
         .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)

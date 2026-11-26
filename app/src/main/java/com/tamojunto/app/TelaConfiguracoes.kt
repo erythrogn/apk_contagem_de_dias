@@ -39,7 +39,7 @@ fun sha256Hex(texto: String): String =
         .joinToString("") { "%02x".format(it) }
 
 // Lê a foto escolhida: os bytes e o tipo (image/jpeg, por exemplo).
-private suspend fun lerFoto(contexto: Context, uri: Uri): Pair<ByteArray, String>? = withContext(Dispatchers.IO) {
+suspend fun lerFoto(contexto: Context, uri: Uri): Pair<ByteArray, String>? = withContext(Dispatchers.IO) {
     val bytes = contexto.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@withContext null
     bytes to (contexto.contentResolver.getType(uri) ?: "image/jpeg")
 }

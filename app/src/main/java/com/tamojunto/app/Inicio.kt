@@ -40,11 +40,12 @@ data class LacoApp(
 data class MissaoHoje(val titulo: String, val xp: Int, val expiraTexto: String)
 data class PedidoAtencao(val titulo: String, val quem: String)
 data class ResumoHoje(val missao: MissaoHoje?, val esperandoVoce: PedidoAtencao?)
+data class FotoCasal(val nome: String, val url: String)
 
 data class InicioApp(
     val dataIso: String,
     val dataExtenso: String,
-    val fotos: List<String>,
+    val fotos: List<FotoCasal>,
     val laco: LacoApp?,
     val hoje: ResumoHoje?,
     val eu: String,
@@ -93,7 +94,7 @@ object InicioServidor {
         if (!r.ok || j == null) return null to r.msg
         val inicio = j.getJSONObject("inicio")
         val nomes = j.optJSONObject("nomes")
-        val fotos = j.optJSONArray("fotos")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty()
+        val fotos = j.optJSONArray("fotos")?.objetos()?.map { FotoCasal(it.texto("nome"), it.texto("url")) }.orEmpty()
         return InicioApp(
             dataIso = inicio.texto("data_iso"),
             dataExtenso = inicio.texto("data_extenso"),

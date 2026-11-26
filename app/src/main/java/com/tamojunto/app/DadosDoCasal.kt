@@ -216,6 +216,13 @@ class DadosDoCasal(private val uid: String) {
             .setValue(mapOf("de" to de, "para" to para, "texto" to texto, "em" to ServerValue.TIMESTAMP))
     }
 
+    // Desliga o compartilhamento: o site guarda ativo = false e a última posição.
+    fun pararLocalizacao() {
+        val casal = casalId ?: return
+        val slot = meuSlot ?: return
+        banco.getReference("casais/$casal/localizacoes/$slot/ativo").setValue(false)
+    }
+
     // Quem lê a cartinha a apaga, como no site.
     fun lerCartinha(chave: String) {
         val casal = casalId ?: return
