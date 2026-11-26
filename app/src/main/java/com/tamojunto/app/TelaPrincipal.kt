@@ -52,6 +52,7 @@ fun TelaPrincipal(usuario: FirebaseUser) {
     var aba by rememberSaveable { mutableStateOf(Aba.INICIO) }
 
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         bottomBar = {
             NavigationBar {
                 Aba.entries.forEach { item ->
