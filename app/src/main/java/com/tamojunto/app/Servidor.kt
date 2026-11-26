@@ -68,6 +68,8 @@ object Servidor {
 
     suspend fun apagar(caminho: String): RespostaServidor = enviar(caminho) { it.delete() }
 
+    suspend fun obter(caminho: String): RespostaServidor = enviar(caminho) { it.get() }
+
     suspend fun enviarFoto(caminho: String, bytes: ByteArray, tipo: String): RespostaServidor = enviar(caminho) {
         val corpo = MultipartBody.Builder()
             .setType(MultipartBody.FORM)

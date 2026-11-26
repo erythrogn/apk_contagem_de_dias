@@ -2,6 +2,7 @@ package com.tamojunto.app
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -9,6 +10,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
 import java.time.LocalDate
 import java.time.ZoneId
@@ -25,7 +27,8 @@ data class Item(
     val feito: Boolean,
     val status: String,
     val categoria: String,
-    val notas: String
+    val notas: String,
+    val dataIso: String = ""
 ) {
     companion object {
         fun de(chave: String, s: DataSnapshot, secao: String): Item {
@@ -35,14 +38,17 @@ data class Item(
                 "filmes" -> s.child("watched").value.let { it == true || it == "true" }
                 "series" -> texto("status") == "concluida"
                 "jogos" -> texto("status") == "zerado"
+                "viagens" -> texto("status") == "feita"
                 else -> s.child("done").value == true
             }
+            val dataIso = texto("targetDate").ifBlank { texto("date") }
             return Item(
                 chave = chave,
-                titulo = texto("title"),
+                titulo = texto("title").ifBlank { texto("destiny").ifBlank { texto("dest") } },
                 ano = texto("year"),
                 genero = texto("genre"),
-                quando = dataBr(texto("targetDate")),
+                quando = dataBr(dataIso),
+                dataIso = dataIso,
                 quem = texto("who"),
                 feito = feito,
                 status = texto("status"),
@@ -91,6 +97,10 @@ fun dataBr(iso: String): String = try {
     iso
 }
 
+data class Humor(val id: String, val em: Long)
+data class Localizacao(val lat: Double, val lng: Double, val ativo: Boolean, val em: Long)
+data class Cartinha(val chave: String, val de: String, val para: String, val texto: String, val em: Long)
+
 // Lê o casal do usuário e as listas do casal em tempo real.
 class DadosDoCasal(private val uid: String) {
     private val banco = FirebaseDatabase.getInstance()
@@ -110,6 +120,11 @@ class DadosDoCasal(private val uid: String) {
     val jogos: SnapshotStateList<Item> = mutableStateListOf()
     val coisinhas: SnapshotStateList<Item> = mutableStateListOf()
     val notas: SnapshotStateList<Nota> = mutableStateListOf()
+    val viagens: SnapshotStateList<Item> = mutableStateListOf()
+    val planos: SnapshotStateList<Item> = mutableStateListOf()
+    val humores = mutableStateMapOf<String, Humor>()
+    val localizacoes = mutableStateMapOf<String, Localizacao>()
+    val cartinhas: SnapshotStateList<Cartinha> = mutableStateListOf()
 
     private var removerUsuario: (() -> Unit)? = null
     private val removeresCasal = mutableListOf<() -> Unit>()
@@ -178,11 +193,41 @@ class DadosDoCasal(private val uid: String) {
         ) {}
     }
 
+    // Humor, localização e cartinhas: gravados direto, como o site faz.
+    fun definirHumor(id: String) {
+        val casal = casalId ?: return
+        val slot = meuSlot ?: return
+        banco.getReference("casais/$casal/humor/$slot")
+            .setValue(mapOf("id" to id, "em" to ServerValue.TIMESTAMP))
+    }
+
+    fun atualizarLocalizacao(lat: Double, lng: Double) {
+        val casal = casalId ?: return
+        val slot = meuSlot ?: return
+        banco.getReference("casais/$casal/localizacoes/$slot")
+            .setValue(mapOf("lat" to lat, "lng" to lng, "ativo" to true, "em" to ServerValue.TIMESTAMP))
+    }
+
+    fun enviarCartinha(texto: String) {
+        val casal = casalId ?: return
+        val de = meuSlot ?: return
+        val para = if (de == "pessoa1") "pessoa2" else "pessoa1"
+        banco.getReference("casais/$casal/cartinhas").push()
+            .setValue(mapOf("de" to de, "para" to para, "texto" to texto, "em" to ServerValue.TIMESTAMP))
+    }
+
+    // Quem lê a cartinha a apaga, como no site.
+    fun lerCartinha(chave: String) {
+        val casal = casalId ?: return
+        banco.getReference("casais/$casal/cartinhas/$chave").removeValue()
+    }
+
     private fun trocarCasal(id: String?) {
         removeresCasal.forEach { it() }
         removeresCasal.clear()
         casalId = id
         filmes.clear(); series.clear(); jogos.clear(); coisinhas.clear(); notas.clear()
+        viagens.clear(); planos.clear(); humores.clear(); localizacoes.clear(); cartinhas.clear()
         dataNamoro = null
         meuSlot = null
         if (id == null) return
@@ -197,6 +242,43 @@ class DadosDoCasal(private val uid: String) {
         removeresCasal += ouvirLista("casais/$id/series", series, "series")
         removeresCasal += ouvirLista("casais/$id/jogos", jogos, "jogos")
         removeresCasal += ouvirLista("casais/$id/coisinhas", coisinhas, "coisinhas")
+        removeresCasal += ouvirLista("casais/$id/viagens", viagens, "viagens")
+        removeresCasal += ouvirLista("casais/$id/planos", planos, "planos")
+        removeresCasal += ouvir("casais/$id/humor") { s ->
+            humores.clear()
+            s.children.forEach { f ->
+                humores[f.key ?: ""] = Humor(
+                    f.child("id").getValue(String::class.java) ?: "",
+                    f.child("em").getValue(Long::class.java) ?: 0L
+                )
+            }
+        }
+        removeresCasal += ouvir("casais/$id/localizacoes") { s ->
+            localizacoes.clear()
+            s.children.forEach { f ->
+                localizacoes[f.key ?: ""] = Localizacao(
+                    f.child("lat").getValue(Double::class.java) ?: 0.0,
+                    f.child("lng").getValue(Double::class.java) ?: 0.0,
+                    f.child("ativo").getValue(Boolean::class.java) ?: false,
+                    f.child("em").getValue(Long::class.java) ?: 0L
+                )
+            }
+        }
+        removeresCasal += ouvir("casais/$id/cartinhas") { s ->
+            cartinhas.clear()
+            s.children.forEach { f ->
+                cartinhas.add(
+                    Cartinha(
+                        f.key ?: "",
+                        f.child("de").getValue(String::class.java) ?: "",
+                        f.child("para").getValue(String::class.java) ?: "",
+                        f.child("texto").getValue(String::class.java) ?: "",
+                        f.child("em").getValue(Long::class.java) ?: 0L
+                    )
+                )
+            }
+            cartinhas.sortByDescending { it.em }
+        }
         removeresCasal += ouvir("casais/$id/bloco") { s ->
             notas.clear()
             s.children.forEach { filho -> notas.add(Nota.de(filho.key ?: "", filho)) }

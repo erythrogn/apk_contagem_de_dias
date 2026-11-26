@@ -40,6 +40,7 @@ private val Sem = FontFamily(
 
 private val TipografiaDoSite: Typography = Typography().let { t ->
     t.copy(
+        displayLarge = t.displayLarge.copy(fontFamily = Serifa, fontWeight = FontWeight.SemiBold),
         displaySmall = t.displaySmall.copy(fontFamily = Serifa, fontWeight = FontWeight.SemiBold),
         headlineLarge = t.headlineLarge.copy(fontFamily = Serifa, fontWeight = FontWeight.SemiBold),
         headlineMedium = t.headlineMedium.copy(fontFamily = Serifa, fontWeight = FontWeight.SemiBold),
