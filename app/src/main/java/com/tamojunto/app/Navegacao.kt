@@ -34,7 +34,7 @@ import androidx.core.graphics.PathParser
 
 // Ícone de traço fino e arredondado, desenhado sobre viewBox 24, como os humores e as estrelas.
 @Composable
-internal fun IconeLinha(caminhos: List<String>, tamanho: Dp, cor: Color, espessura: Float = 1.8f) {
+internal fun IconeLinha(caminhos: List<String>, tamanho: Dp, cor: Color, espessura: Float = 1.25f) {
     val prontos = remember(caminhos) {
         caminhos.map { PathParser.createPathFromPathData(it).asComposePath() }
     }
@@ -82,7 +82,7 @@ internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Uni
                         .padding(vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    IconeLinha(caminhos = aba.caminhos, tamanho = 24.dp, cor = cor)
+                    IconeLinha(caminhos = aba.caminhos, tamanho = 24.dp, cor = cor, espessura = aba.espessura)
                     Text(aba.rotulo, style = EstiloMenu, color = cor, modifier = Modifier.padding(top = 4.dp))
                     Box(
                         Modifier

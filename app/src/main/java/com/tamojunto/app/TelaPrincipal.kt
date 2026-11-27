@@ -30,30 +30,27 @@ import com.google.firebase.auth.FirebaseUser
 
 // Menu inferior: as mesmas abas da barra do site (Início, Notas, Filmes, Coisinhas e Mais).
 // Os traços dos ícones seguem o estilo dos humores e das estrelas, sem caractere nem emoji.
-enum class Aba(val rotulo: String, val caminhos: List<String>) {
-    INICIO(
-        "Início",
-        listOf("M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z")
-    ),
+enum class Aba(val rotulo: String, val caminhos: List<String>, val espessura: Float = 1.25f) {
+    // Os mesmos traços do menu do site (header.html): viewBox 24, traço 1.25, pontas arredondadas.
+    INICIO("Início", listOf("M3 10l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z")),
     NOTAS(
         "Notas",
-        listOf(
-            "M6 3h9l3 3v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",
-            "M9 11h6M9 15h6M9 19h3"
-        )
+        listOf("M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z", "M16 8L2 22")
     ),
     FILMES(
         "Filmes",
-        listOf("M3 6h18v13H3z", "M3 10h18", "M7 6l2 4M12 6l2 4M17 6l2 4")
+        listOf("M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20z", "M10 8l6 4-6 4z")
     ),
     COISINHAS(
         "Coisinhas",
-        listOf("M12 20s-7-4.4-7-9.5A3.8 3.8 0 0 1 12 8a3.8 3.8 0 0 1 7 2.5C19 15.6 12 20 12 20z")
+        listOf(
+            "M8 22h8",
+            "M12 15v7",
+            "M12 15a7.03 7.03 0 0 0 7-7c0-2-1-4-3-6H8c-2 2-3 4-3 6a7.03 7.03 0 0 0 7 7z"
+        )
     ),
-    MAIS(
-        "Mais",
-        listOf("M4 7h16M4 12h16M4 17h16")
-    )
+    // Três pontos cheios: traço grosso sobre um ponto de zero de comprimento.
+    MAIS("Mais", listOf("M5 12h0M12 12h0M19 12h0"), espessura = 3.2f)
 }
 
 @Composable
@@ -124,42 +121,42 @@ fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
             Text("Mais", style = EstiloTituloSecao, textAlign = TextAlign.Center)
             Spacer(Modifier.height(18.dp))
             LinhaMenu(
-                caminhos = listOf("M4 7h9M17 7h3M4 17h3M11 17h9", "M14 5v4M7 15v4"),
+                caminhos = listOf("M4 21v-7", "M4 10V3", "M12 21v-9", "M12 8V3", "M20 21v-5", "M20 12V3", "M1 14h6", "M9 8h6", "M17 16h6"),
                 titulo = "Configurações",
                 apoio = "Conta, casal e aparência",
                 ativo = true,
                 aoClicar = { destino = "config" }
             )
             LinhaMenu(
-                caminhos = listOf("M12 12a4 4 0 1 0 0-.01M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"),
+                caminhos = listOf("M12 4a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M4 21a8 8 0 0 1 16 0"),
                 titulo = "Perfil",
                 apoio = "Seu @, amigos e pedidos",
                 ativo = true,
                 aoClicar = { destino = "perfil" }
             )
             LinhaMenu(
-                caminhos = listOf("M4 6h16v14H4z", "M4 10h16", "M8 3v4M16 3v4"),
+                caminhos = listOf("M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M16 2v4", "M8 2v4", "M3 10h18", "M12 14.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 1 0 0-3z"),
                 titulo = "Calendário",
                 apoio = "Planos, mesversário e datas",
                 ativo = true,
                 aoClicar = { destino = "calendario" }
             )
             LinhaMenu(
-                caminhos = listOf("M3 12h18", "M12 3c3 3.5 3 14.5 0 18", "M12 3c-3 3.5-3 14.5 0 18"),
+                caminhos = listOf("M3 11l19-9-9 19-2-8-8-2z"),
                 titulo = "Viagens",
                 apoio = "Roteiros e preparativos",
                 ativo = true,
                 aoClicar = { destino = "viagens" }
             )
             LinhaMenu(
-                caminhos = listOf("M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.6 6.7 19.1l1-5.8-4.2-4.1 5.9-.9z"),
+                caminhos = listOf("M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z", "M4 22v-7"),
                 titulo = "Missões",
                 apoio = "Missões para fazer juntos e o XP do Laço",
                 ativo = true,
                 aoClicar = { destino = "missoes" }
             )
             LinhaMenu(
-                caminhos = listOf("M12 4l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5-3.6-3.5 5-.7z"),
+                caminhos = listOf("M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"),
                 titulo = "Céu de vocês",
                 apoio = "As histórias que viraram estrela",
                 ativo = true,
@@ -180,7 +177,7 @@ private fun ComVoltar(rotulo: String, aoVoltar: () -> Unit, conteudo: @Composabl
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconeLinha(caminhos = listOf("M15 19l-7-7 7-7"), tamanho = 18.dp, cor = Tinta, espessura = 1.5f)
+            IconeLinha(caminhos = listOf("M15 19l-7-7 7-7"), tamanho = 18.dp, cor = Tinta)
             Text(rotulo, style = EstiloApoio, color = Tinta, modifier = Modifier.padding(start = 6.dp))
         }
         Box(Modifier.weight(1f)) { conteudo() }
@@ -211,7 +208,7 @@ private fun LinhaMenu(
                 Text(apoio, style = EstiloRotulo, color = TintaSuave)
             }
             if (ativo) {
-                IconeLinha(caminhos = listOf("M9 6l6 6-6 6"), tamanho = 18.dp, cor = TintaSuave)
+                IconeLinha(caminhos = listOf("M9 18l6-6-6-6"), tamanho = 18.dp, cor = TintaSuave)
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Tinta.copy(alpha = 0.12f)))
