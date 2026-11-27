@@ -322,23 +322,533 @@ fun TelaFilmes(dados: DadosDoCasal) {
             }
         }
     }
+
+    if (novaAberta) {
+        FormularioNovaMidia(secao = secao, dados = dados, aoFechar = { novaAberta = false })
+    }
+
+    aberto?.let { item ->
+        PainelMidia(
+            dados = dados,
+            secao = secao,
+            item = item,
+            eu = eu,
+            nomeEu = nomeDe(eu ?: "pessoa1"),
+            nomeOutra = nomeDe(outra),
+            aoAbrirTrailer = { url -> contexto.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
+            aoFechar = { chaveAberta = null }
+        )
+    }
 }
 
-private val UNIDADES = listOf("dias" to "dias", "meses" to "meses", "anos" to "anos")
+// Carrossel de destaque, como no site: a capa do centro em tamanho cheio, as vizinhas menores
+// e esmaecidas. Desliza com o dedo, tem setas, contador, faixa de miniaturas e o título embaixo.
+@Composable
+private fun DestaqueFilmes(visiveis: List<Item>, secao: Secao, aoAbrir: (String) -> Unit) {
+    val total = visiveis.size
+    val pagerState = rememberPagerState(pageCount = { total })
+    val escopo = rememberCoroutineScope()
+    val atual = pagerState.currentPage
+    val listaMiniaturas = rememberLazyListState()
 
-private fun Tela.botoesUnidade(y: Float, altura: Float, unidadeAtual: String, larguraTotal: Float, x0: Float) {
-    val espaco = 6f
-    val largura = (larguraTotal - espaco * (UNIDADES.size - 1)) / UNIDADES.size
-    val tamFonte = (altura * 0.36f).coerceIn(9.5f, 11f)
-    UNIDADES.forEachIndexed { i, (chave, rotulo) ->
-        val x = x0 + i * (largura + espaco)
-        val ativa = chave == unidadeAtual
-        retangulo(x, y, largura, altura, 9f, if (ativa) BotaoAtivoPastel else BotaoInativoPastel)
-        if (!ativa) {
-            retangulo(x, y, largura, altura, 9f, BordaOuroPastel.copy(alpha = 0.7f), contorno = true, espessura = 0.7f)
+    // A faixa de miniaturas acompanha o item do centro.
+    LaunchedEffect(atual) { listaMiniaturas.animateScrollToItem(atual) }
+
+    // O progresso da barra desliza até a posição nova.
+    val progresso by animateFloatAsState(
+        targetValue = (atual + 1).toFloat() / total,
+        animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
+        label = "progressoCarrossel"
+    )
+
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxWidth().height(430.dp),
+            contentPadding = PaddingValues(horizontal = 58.dp),
+            pageSpacing = 14.dp
+        ) { pagina ->
+            val midia = visiveis[pagina]
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .shadow(elevation = 16.dp, shape = RoundedCornerShape(4.dp), ambientColor = Tinta, spotColor = Tinta)
+                    // Quanto mais perto do centro, maior e mais nítida. A escala é lida no desenho, sem recompor.
+                    .graphicsLayer {
+                        val distancia = abs((pagerState.currentPage - pagina) + pagerState.currentPageOffsetFraction)
+                        val proximidade = 1f - distancia.coerceIn(0f, 1f)
+                        scaleX = lerp(0.84f, 1f, proximidade)
+                        scaleY = scaleX
+                        alpha = lerp(0.45f, 1f, proximidade)
+                    }
+                    .clickable { aoAbrir(midia.chave) }
+            ) {
+                CapaMidia(
+                    poster = midia.poster,
+                    titulo = midia.titulo,
+                    cinza = midia.feito,
+                    modifier = Modifier.fillMaxSize().border(1.dp, Ouro.copy(alpha = 0.8f), RoundedCornerShape(4.dp))
+                )
+            }
         }
-        val pincel = fonte(if (ativa) CremePastel else TintaPastel, R.font.montserrat_semibold, tamFonte)
-        texto(rotulo, x + largura / 2f, baselineCentro(y + altura / 2f, pincel), pincel, largura - 6f, Paint.Align.CENTER)
-        zona(x, y, largura, altura, actionRunCallback<SetarUnidadeCallback>(actionParametersOf(ChaveUnidade to chave)))
+
+        // Setas nas pontas e o contador no meio, com a barra de progresso embaixo.
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BotaoSeta(
+                caminho = "M15 19l-7-7 7-7",
+                habilitado = atual > 0,
+                aoClicar = { escopo.launch { pagerState.animateScrollToPage(atual - 1) } }
+            )
+            Column(Modifier.weight(1f).padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("${atual + 1} de $total", style = EstiloRotulo, color = TintaSuave)
+                Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(2.dp).background(Tinta.copy(alpha = 0.12f))) {
+                    Box(Modifier.fillMaxWidth(progresso).height(2.dp).background(Ouro))
+                }
+            }
+            BotaoSeta(
+                caminho = "M9 18l6-6-6-6",
+                habilitado = atual < total - 1,
+                aoClicar = { escopo.launch { pagerState.animateScrollToPage(atual + 1) } }
+            )
+        }
+
+        // Título e a ficha. Ao trocar de item, o texto dá uma leve transição.
+        Crossfade(targetState = atual, label = "textoCarrossel") { pagina ->
+            visiveis.getOrNull(pagina)?.let { midia ->
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        midia.titulo.ifBlank { "Sem título" },
+                        style = EstiloTituloSecao,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    val meta = listOf(midia.ano, midia.genero, secao.situacaoDe(midia)).filter { it.isNotBlank() }
+                    Text(meta.joinToString(" · "), style = EstiloRotulo, color = TintaSuave, textAlign = TextAlign.Center)
+                    BotaoSite(
+                        texto = "Abrir ficha",
+                        aoClicar = { aoAbrir(midia.chave) },
+                        primario = true,
+                        modifier = Modifier.width(180.dp)
+                    )
+                }
+            }
+        }
+
+        // Faixa de miniaturas: o item do centro fica destacado; tocar numa miniatura leva até ela.
+        LazyRow(
+            state = listaMiniaturas,
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            itemsIndexed(visiveis, key = { _, midia -> midia.chave }) { indice, midia ->
+                val selecionada = indice == atual
+                val escala by animateFloatAsState(
+                    targetValue = if (selecionada) 1f else 0.9f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                    label = "miniatura"
+                )
+                CapaMidia(
+                    poster = midia.poster,
+                    titulo = midia.titulo,
+                    cinza = midia.feito,
+                    modifier = Modifier
+                        .width(54.dp)
+                        .aspectRatio(2f / 3f)
+                        .graphicsLayer {
+                            scaleX = escala
+                            scaleY = escala
+                            alpha = if (selecionada) 1f else 0.7f
+                        }
+                        .then(if (selecionada) Modifier.border(2.dp, Ouro, RoundedCornerShape(4.dp)) else Modifier)
+                        .clickable { escopo.launch { pagerState.animateScrollToPage(indice) } }
+                )
+            }
+        }
+    }
+}
+
+// Seta redonda do carrossel: some para o tamanho do toque quando não há mais para onde ir.
+@Composable
+private fun BotaoSeta(caminho: String, habilitado: Boolean, aoClicar: () -> Unit) {
+    val opacidade by animateFloatAsState(
+        targetValue = if (habilitado) 1f else 0.35f,
+        label = "opacidadeSeta"
+    )
+    Box(
+        Modifier
+            .size(44.dp)
+            .graphicsLayer { alpha = opacidade }
+            .clip(RoundedCornerShape(4.dp))
+            .background(Papel)
+            .border(1.dp, Ouro, RoundedCornerShape(4.dp))
+            .clickable(enabled = habilitado, onClick = aoClicar),
+        contentAlignment = Alignment.Center
+    ) {
+        IconeLinha(caminhos = listOf(caminho), tamanho = 20.dp, cor = Tinta)
+    }
+}
+
+// Escala suave ao toque: a capa encolhe um pouco enquanto o dedo está sobre ela.
+@Composable
+private fun Modifier.toqueSuave(fonte: MutableInteractionSource): Modifier {
+    val pressionado by fonte.collectIsPressedAsState()
+    val escala by animateFloatAsState(
+        targetValue = if (pressionado) 0.96f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "toque"
+    )
+    return this.graphicsLayer {
+        scaleX = escala
+        scaleY = escala
+    }
+}
+
+// Uma capa na grade: a imagem, o selo de "feito" (surge com animação) e o título embaixo.
+@Composable
+private fun CartaoMidia(item: Item, rotuloFeito: String, aoAbrir: () -> Unit, modifier: Modifier = Modifier) {
+    val fonte = remember { MutableInteractionSource() }
+    Column(
+        modifier
+            .fillMaxWidth()
+            .toqueSuave(fonte)
+            .clickable(interactionSource = fonte, indication = null, onClick = aoAbrir)
+    ) {
+        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
+            CapaMidia(poster = item.poster, titulo = item.titulo, modifier = Modifier.fillMaxSize())
+            // O selo cresce com um pequeno salto quando o item vira "feito" e encolhe ao desmarcar.
+            val escalaSelo by animateFloatAsState(
+                targetValue = if (item.feito) 1f else 0f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
+                label = "selo"
+            )
+            if (escalaSelo > 0.01f) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .graphicsLayer {
+                            scaleX = escalaSelo
+                            scaleY = escalaSelo
+                            alpha = escalaSelo.coerceIn(0f, 1f)
+                        }
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Ouro)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(rotuloFeito, style = EstiloRotulo, color = Tinta)
+                }
+            }
+        }
+        Text(
+            item.titulo.ifBlank { "Sem título" },
+            style = EstiloApoio,
+            color = Tinta,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+        val meta = listOf(item.ano, item.genero).filter { it.isNotBlank() }.joinToString(" · ")
+        if (meta.isNotBlank()) {
+            Text(meta, style = EstiloRotulo, color = TintaSuave, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+// Uma linha da lista: miniatura, título, ano e gênero, e a situação à direita.
+@Composable
+private fun LinhaMidia(item: Item, situacao: String, aoAbrir: () -> Unit, modifier: Modifier = Modifier) {
+    val fonte = remember { MutableInteractionSource() }
+    Row(
+        modifier
+            .fillMaxWidth()
+            .toqueSuave(fonte)
+            .clickable(interactionSource = fonte, indication = null, onClick = aoAbrir)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CapaMidia(poster = item.poster, titulo = item.titulo, modifier = Modifier.width(52.dp).aspectRatio(2f / 3f))
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(
+                item.titulo.ifBlank { "Sem título" },
+                style = EstiloApoio,
+                color = Tinta,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            val meta = listOf(item.ano, item.genero).filter { it.isNotBlank() }.joinToString(" · ")
+            if (meta.isNotBlank()) {
+                Text(meta, style = EstiloRotulo, color = TintaSuave, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Text(situacao, style = EstiloRotulo, color = if (item.feito) Ocre else TintaSuave, textAlign = TextAlign.End)
+    }
+}
+
+// Ficha do item em painel inferior. Tudo o que se faz com um item está aqui, com nome claro:
+// situação, notas, onde assistir, trailer e apagar.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PainelMidia(
+    dados: DadosDoCasal,
+    secao: Secao,
+    item: Item,
+    eu: String?,
+    nomeEu: String,
+    nomeOutra: String,
+    aoAbrirTrailer: (String) -> Unit,
+    aoFechar: () -> Unit
+) {
+    val estado = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var onde by remember(item.chave) { mutableStateOf(item.onde) }
+    var confirmarApagar by remember { mutableStateOf(false) }
+    val (minha, dela) = notasDoCasal(item, eu)
+    val statusAtual = if (secao == Secao.FILMES) (if (item.feito) "assistido" else "assistir") else item.status
+
+    fun mudarStatus(valor: String) {
+        if (secao == Secao.FILMES) {
+            dados.atualizarItem("filmes", item.chave, mapOf("watched" to (valor == "assistido")), item.titulo) {}
+        } else {
+            dados.atualizarItem(secao.colecao, item.chave, mapOf("status" to valor), item.titulo) {}
+        }
+    }
+
+    fun salvarNota(nota: Int) {
+        val campo = campoNota(eu) ?: return
+        dados.atualizarItem(secao.colecao, item.chave, mapOf(campo to nota), item.titulo) {}
+    }
+
+    ModalBottomSheet(onDismissRequest = aoFechar, sheetState = estado) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            CapaMidia(poster = item.poster, titulo = item.titulo, modifier = Modifier.width(170.dp).aspectRatio(2f / 3f))
+            Text(item.titulo.ifBlank { "Sem título" }, style = EstiloTituloSecao, textAlign = TextAlign.Center)
+            val meta = listOf(item.ano, item.genero, item.quando).filter { it.isNotBlank() }
+            if (meta.isNotEmpty()) {
+                Text(meta.joinToString(" · "), style = EstiloRotulo, color = TintaSuave, textAlign = TextAlign.Center)
+            }
+            if (item.diretor.isNotBlank()) {
+                Text(
+                    (if (secao == Secao.SERIES) "Criação: " else "Direção: ") + item.diretor,
+                    style = EstiloApoio,
+                    textAlign = TextAlign.Center
+                )
+            }
+            if (item.elenco.isNotBlank()) {
+                Text("Elenco: ${item.elenco}", style = EstiloApoio, textAlign = TextAlign.Center)
+            }
+            if (item.quem.isNotBlank()) {
+                Text("Indicado por ${item.quem}", style = EstiloRotulo, color = TintaSuave)
+            }
+            if (secao == Secao.JOGOS && item.plataforma.isNotBlank()) {
+                Text("Plataforma: ${item.plataforma}", style = EstiloRotulo, color = TintaSuave)
+            }
+
+            // Situação: um toque troca. O item marcado fica destacado.
+            Text("Situação", style = EstiloTituloSecao, color = Tinta)
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                secao.statusOpcoes.drop(1).forEach { (valor, rotulo) ->
+                    FiltroSite(texto = rotulo, ativo = statusAtual == valor, aoClicar = { mudarStatus(valor) })
+                }
+            }
+
+            // Notas: cada pessoa dá a sua.
+            Text("Notas", style = EstiloTituloSecao, color = Tinta)
+            if (eu == null) {
+                Text("Entre no casal para dar sua nota.", style = EstiloRotulo, color = TintaSuave, textAlign = TextAlign.Center)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(nomeEu, style = EstiloRotulo, color = Tinta, modifier = Modifier.width(90.dp))
+                Estrelas(valor = minha, aoMudar = if (eu != null) ({ nota: Int -> salvarNota(nota) }) else null, tamanho = 26.dp)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(nomeOutra, style = EstiloRotulo, color = Tinta, modifier = Modifier.width(90.dp))
+                Estrelas(valor = dela, tamanho = 26.dp)
+            }
+
+            // Onde assistir: salvo só quando a pessoa aperta o botão.
+            OutlinedTextField(
+                value = onde,
+                onValueChange = { onde = it },
+                label = { Text("Onde assistir ou jogar") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            BotaoSite(
+                texto = "Salvar onde",
+                aoClicar = { dados.atualizarItem(secao.colecao, item.chave, mapOf("where" to onde.trim()), item.titulo) {} },
+                habilitado = onde.trim() != item.onde,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            if (item.trailer.isNotBlank()) {
+                BotaoSite(
+                    texto = "Ver trailer",
+                    aoClicar = { aoAbrirTrailer(item.trailer) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            TextButton(onClick = { confirmarApagar = true }) {
+                Text("Apagar da lista", style = EstiloBotao, color = Ocre)
+            }
+        }
+    }
+
+    if (confirmarApagar) {
+        DialogoConfirmar(
+            titulo = "Apagar ${item.titulo}?",
+            texto = "Isso remove da lista do casal.",
+            rotuloConfirmar = "Apagar",
+            aoConfirmar = {
+                dados.apagarItem(secao.colecao, item.chave, item.titulo) {}
+                aoFechar()
+            },
+            aoFechar = { confirmarApagar = false }
+        )
+    }
+}
+
+// Cadastro de um item. A capa e a ficha são buscadas enquanto a pessoa digita o título.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FormularioNovaMidia(secao: Secao, dados: DadosDoCasal, aoFechar: () -> Unit) {
+    val estado = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var titulo by rememberSaveable { mutableStateOf("") }
+    var ano by rememberSaveable { mutableStateOf("") }
+    var genero by rememberSaveable { mutableStateOf("") }
+    var indicado by rememberSaveable { mutableStateOf("") }
+    var quando by rememberSaveable { mutableStateOf("") }
+    var plataforma by rememberSaveable { mutableStateOf("") }
+    var statusNovo by rememberSaveable { mutableStateOf(secao.statusOpcoes.getOrNull(1)?.first ?: "") }
+    var ficha by remember { mutableStateOf<FichaMidia?>(null) }
+    var buscando by remember { mutableStateOf(false) }
+    val dataValida = quando.isBlank() || Regex("\\d{4}-\\d{2}-\\d{2}").matches(quando.trim())
+
+    // Busca automática da capa: espera a pessoa parar de digitar.
+    LaunchedEffect(titulo, ano, secao) {
+        ficha = null
+        if (titulo.trim().length >= 2) {
+            delay(600)
+            buscando = true
+            ficha = when (secao) {
+                Secao.FILMES -> BuscaMidia.filmeOuSerie(false, titulo.trim(), ano.trim())
+                Secao.SERIES -> BuscaMidia.filmeOuSerie(true, titulo.trim(), ano.trim())
+                Secao.JOGOS -> BuscaMidia.jogo(titulo.trim())
+            }
+            buscando = false
+        }
+    }
+
+    ModalBottomSheet(onDismissRequest = aoFechar, sheetState = estado) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("Novo ${secao.singular}", style = EstiloTituloSecao, textAlign = TextAlign.Center)
+            CapaMidia(
+                poster = ficha?.poster.orEmpty(),
+                titulo = titulo,
+                modifier = Modifier.width(130.dp).aspectRatio(2f / 3f)
+            )
+            if (buscando) {
+                Text("Procurando a capa…", style = EstiloRotulo, color = TintaSuave)
+            } else if (ficha != null && ficha?.poster.isNullOrBlank()) {
+                Text("Capa não encontrada. Você pode salvar mesmo assim.", style = EstiloRotulo, color = TintaSuave, textAlign = TextAlign.Center)
+            }
+
+            OutlinedTextField(value = titulo, onValueChange = { titulo = it }, label = { Text("Título") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = ano, onValueChange = { ano = it }, label = { Text("Ano (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = genero, onValueChange = { genero = it }, label = { Text("Gênero (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = indicado, onValueChange = { indicado = it }, label = { Text("Quem indicou (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(
+                value = quando,
+                onValueChange = { quando = it },
+                label = { Text("Data (opcional)") },
+                placeholder = { Text("AAAA-MM-DD") },
+                singleLine = true,
+                isError = !dataValida,
+                supportingText = { if (!dataValida) Text("Use o formato AAAA-MM-DD") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (secao == Secao.JOGOS) {
+                OutlinedTextField(value = plataforma, onValueChange = { plataforma = it }, label = { Text("Plataforma (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+            if (secao != Secao.FILMES) {
+                Text("Situação", style = EstiloRotulo, color = TintaSuave)
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    secao.statusOpcoes.drop(1).forEach { (valor, rotulo) ->
+                        FiltroSite(texto = rotulo, ativo = statusNovo == valor, aoClicar = { statusNovo = valor })
+                    }
+                }
+            }
+
+            BotaoSite(
+                texto = "Salvar ${secao.singular}",
+                aoClicar = {
+                    val f = ficha
+                    val campos = mutableMapOf<String, Any?>(
+                        "title" to titulo.trim(),
+                        "year" to ano.trim(),
+                        "genre" to genero.trim(),
+                        "who" to indicado.trim(),
+                        "targetDate" to quando.trim(),
+                        "poster" to (f?.poster.orEmpty()),
+                        "trailer" to (f?.trailer.orEmpty()),
+                        "cast" to (f?.elenco.orEmpty()),
+                        "releaseDate" to (f?.dataEstreia.orEmpty())
+                    )
+                    when (secao) {
+                        Secao.FILMES -> {
+                            campos["watched"] = false
+                            campos["director"] = f?.diretor.orEmpty()
+                        }
+                        Secao.SERIES -> {
+                            campos["status"] = statusNovo.ifBlank { "quero ver" }
+                            campos["creators"] = f?.diretor.orEmpty()
+                        }
+                        Secao.JOGOS -> {
+                            campos["status"] = statusNovo.ifBlank { "quero jogar" }
+                            campos["platform"] = plataforma.trim()
+                            campos["where"] = ""
+                        }
+                    }
+                    dados.criarItem(secao.colecao, campos, titulo.trim()) {}
+                    aoFechar()
+                },
+                habilitado = titulo.isNotBlank() && dataValida,
+                primario = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 }
