@@ -2,9 +2,22 @@ package com.tamojunto.app
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.animateItem
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -87,6 +102,12 @@ private fun Secao.rotuloFeito(): String = when (this) {
     Secao.JOGOS -> "Zerado"
 }
 
+// Texto da situação de um item, como aparece na lista.
+private fun Secao.situacaoDe(item: Item): String = when (this) {
+    Secao.FILMES -> if (item.feito) "Assistido" else "Para assistir"
+    else -> statusOpcoes.firstOrNull { it.first == item.status }?.second.orEmpty()
+}
+
 // Campo de nota de cada pessoa (mesmo nome usado pelo site).
 private fun campoNota(slot: String?): String? = when (slot) {
     "pessoa1" -> "ratingPessoa1"
@@ -128,7 +149,7 @@ private fun CapaMidia(poster: String, titulo: String, modifier: Modifier = Modif
     }
 }
 
-// Tela de Filmes, Séries e Jogos: uma grade de capas. Tocar numa capa abre a ficha, onde tudo se faz.
+// Tela de Filmes, Séries e Jogos: capas ou lista. Tocar num item abre a ficha, onde tudo se faz.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TelaFilmes(dados: DadosDoCasal) {
@@ -136,6 +157,7 @@ fun TelaFilmes(dados: DadosDoCasal) {
     var secao by rememberSaveable { mutableStateOf(Secao.FILMES) }
     var statusEscolhido by rememberSaveable { mutableStateOf("todos") }
     var generoEscolhido by rememberSaveable { mutableStateOf("todos") }
+    var modo by rememberSaveable { mutableStateOf("capas") }
     var novaAberta by rememberSaveable { mutableStateOf(false) }
     var chaveAberta by rememberSaveable { mutableStateOf<String?>(null) }
     var nomesPessoas by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
@@ -164,6 +186,13 @@ fun TelaFilmes(dados: DadosDoCasal) {
             (generoEscolhido == "todos" || generoEscolhido in generosDe(it.genero))
     }
     val feitos = lista.count { it.feito }
+    val fracao = if (lista.isEmpty()) 0f else feitos.toFloat() / lista.size
+    // A barra de progresso desliza até o novo valor, em vez de pular.
+    val fracaoAnimada by animateFloatAsState(
+        targetValue = fracao,
+        animationSpec = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+        label = "progresso"
+    )
     val aberto = chaveAberta?.let { chave -> lista.firstOrNull { it.chave == chave } }
 
     fun trocarSecao(nova: Secao) {
@@ -174,20 +203,22 @@ fun TelaFilmes(dados: DadosDoCasal) {
     }
 
     LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
+        columns = GridCells.Fixed(if (modo == "capas") 2 else 1),
         modifier = Modifier.fillMaxSize().padding(12.dp).papelDoSite().padding(20.dp),
         contentPadding = PaddingValues(12.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // Cabeçalho: seções, progresso, o botão de adicionar e os filtros. Ocupa a largura toda.
+        // Cabeçalho: seções, progresso, o botão de adicionar, a forma de ver e os filtros.
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(
                 Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("nossos ${secao.plural}", style = EstiloTituloSecao, textAlign = TextAlign.Center)
+                Crossfade(targetState = secao, label = "titulo") { s ->
+                    Text("nossos ${s.plural}", style = EstiloTituloSecao, textAlign = TextAlign.Center)
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     Secao.entries.forEach { s ->
                         AbaSite(texto = s.rotulo, ativa = secao == s, aoClicar = { trocarSecao(s) })
@@ -201,9 +232,8 @@ fun TelaFilmes(dados: DadosDoCasal) {
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    val fracao = if (lista.isEmpty()) 0f else feitos.toFloat() / lista.size
                     Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(3.dp).background(Tinta.copy(alpha = 0.12f))) {
-                        Box(Modifier.fillMaxWidth(fracao).height(3.dp).background(Ouro))
+                        Box(Modifier.fillMaxWidth(fracaoAnimada).height(3.dp).background(Ouro))
                     }
                 }
                 BotaoSite(
@@ -212,6 +242,13 @@ fun TelaFilmes(dados: DadosDoCasal) {
                     primario = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FiltroSite(texto = "Capas", ativo = modo == "capas", aoClicar = { modo = "capas" })
+                    FiltroSite(texto = "Lista", ativo = modo == "lista", aoClicar = { modo = "lista" })
+                }
                 Text("Mostrar", style = EstiloRotulo, color = TintaSuave)
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -245,9 +282,25 @@ fun TelaFilmes(dados: DadosDoCasal) {
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 )
             }
+        } else if (modo == "capas") {
+            items(visiveis, key = { it.chave }) { midia ->
+                CartaoMidia(
+                    item = midia,
+                    rotuloFeito = secao.rotuloFeito(),
+                    aoAbrir = { chaveAberta = midia.chave },
+                    modifier = Modifier.animateItem()
+                )
+            }
         } else {
-            items(visiveis, key = { it.chave }) { item ->
-                CartaoMidia(item = item, rotuloFeito = secao.rotuloFeito(), aoAbrir = { chaveAberta = item.chave })
+            visiveis.forEach { midia ->
+                item(key = midia.chave, span = { GridItemSpan(maxLineSpan) }) {
+                    LinhaMidia(
+                        item = midia,
+                        situacao = secao.situacaoDe(midia),
+                        aoAbrir = { chaveAberta = midia.chave },
+                        modifier = Modifier.animateItem()
+                    )
+                }
             }
         }
     }
@@ -270,22 +323,47 @@ fun TelaFilmes(dados: DadosDoCasal) {
     }
 }
 
-// Uma capa na grade: a imagem, o selo de "feito" e o título embaixo.
+// Escala suave ao toque: a capa encolhe um pouco enquanto o dedo está sobre ela.
 @Composable
-private fun CartaoMidia(item: Item, rotuloFeito: String, aoAbrir: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clickable(onClick = aoAbrir)) {
+private fun Modifier.toqueSuave(fonte: MutableInteractionSource): Modifier {
+    val pressionado by fonte.collectIsPressedAsState()
+    val escala by animateFloatAsState(
+        targetValue = if (pressionado) 0.96f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "toque"
+    )
+    return this.graphicsLayer {
+        scaleX = escala
+        scaleY = escala
+    }
+}
+
+// Uma capa na grade: a imagem, o selo de "feito" (surge com animação) e o título embaixo.
+@Composable
+private fun CartaoMidia(item: Item, rotuloFeito: String, aoAbrir: () -> Unit, modifier: Modifier = Modifier) {
+    val fonte = remember { MutableInteractionSource() }
+    Column(
+        modifier
+            .fillMaxWidth()
+            .toqueSuave(fonte)
+            .clickable(interactionSource = fonte, indication = null, onClick = aoAbrir)
+    ) {
         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
             CapaMidia(poster = item.poster, titulo = item.titulo, modifier = Modifier.fillMaxSize())
-            if (item.feito) {
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Ouro)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+            Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) {
+                AnimatedVisibility(
+                    visible = item.feito,
+                    enter = scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn(),
+                    exit = scaleOut() + fadeOut()
                 ) {
-                    Text(rotuloFeito, style = EstiloRotulo, color = Tinta)
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Ouro)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(rotuloFeito, style = EstiloRotulo, color = Tinta)
+                    }
                 }
             }
         }
@@ -301,6 +379,36 @@ private fun CartaoMidia(item: Item, rotuloFeito: String, aoAbrir: () -> Unit) {
         if (meta.isNotBlank()) {
             Text(meta, style = EstiloRotulo, color = TintaSuave, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+    }
+}
+
+// Uma linha da lista: miniatura, título, ano e gênero, e a situação à direita.
+@Composable
+private fun LinhaMidia(item: Item, situacao: String, aoAbrir: () -> Unit, modifier: Modifier = Modifier) {
+    val fonte = remember { MutableInteractionSource() }
+    Row(
+        modifier
+            .fillMaxWidth()
+            .toqueSuave(fonte)
+            .clickable(interactionSource = fonte, indication = null, onClick = aoAbrir)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CapaMidia(poster = item.poster, titulo = item.titulo, modifier = Modifier.width(52.dp).aspectRatio(2f / 3f))
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(
+                item.titulo.ifBlank { "Sem título" },
+                style = EstiloApoio,
+                color = Tinta,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            val meta = listOf(item.ano, item.genero).filter { it.isNotBlank() }.joinToString(" · ")
+            if (meta.isNotBlank()) {
+                Text(meta, style = EstiloRotulo, color = TintaSuave, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Text(situacao, style = EstiloRotulo, color = if (item.feito) Ocre else TintaSuave, textAlign = TextAlign.End)
     }
 }
 
@@ -381,7 +489,7 @@ private fun PainelMidia(
                 }
             }
 
-            // Notas: cada pessoa dá a sua. Tocar na nota atual a tira.
+            // Notas: cada pessoa dá a sua.
             Text("Notas", style = EstiloTituloSecao, color = Tinta)
             if (eu == null) {
                 Text("Entre no casal para dar sua nota.", style = EstiloRotulo, color = TintaSuave, textAlign = TextAlign.Center)
