@@ -1,5 +1,6 @@
 package com.tamojunto.app
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -20,6 +21,8 @@ import androidx.glance.GlanceModifier
 import androidx.glance.ImageProvider
 import androidx.glance.LocalSize
 import androidx.glance.action.Action
+import androidx.glance.action.ActionParameters
+import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -33,7 +36,6 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
-import androidx.glance.layout.defaultWeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -140,13 +142,14 @@ suspend fun atualizarWidgets(contexto: Context, dados: DadosWidget) {
     CartaWidget().updateAll(contexto)
 }
 
+// Abre o app. Com carta = true, o pedido segue como extra "acao" para o formulário abrir sozinho.
 private fun abrirApp(contexto: Context, carta: Boolean = false): Action =
     actionStartActivity(
-        Intent(contexto, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            if (carta) putExtra("acao", "carta")
-        }
+        ComponentName(contexto, MainActivity::class.java),
+        if (carta) actionParametersOf(ChaveAcao to "carta") else actionParametersOf()
     )
+
+private val ChaveAcao = ActionParameters.Key<String>("acao")
 
 private fun estilo(tamanho: Int, cor: Color, negrito: Boolean = false, serifa: Boolean = false) = TextStyle(
     color = ColorProvider(cor),
