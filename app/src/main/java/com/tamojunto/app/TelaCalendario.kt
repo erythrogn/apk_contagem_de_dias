@@ -169,7 +169,8 @@ fun TelaCalendario(dados: DadosDoCasal) {
         }
     }
 
-    val cadastrados = eventosCadastrados(dados)
+    // Datas gravadas antes da validação estrita (ex.: 2026-02-30) são ignoradas, para não derrubar a tela.
+    val cadastrados = eventosCadastrados(dados).filter { dataIsoOuNull(it.data) != null }
     val prefixoMes = "%d-%02d-".format(ano, mes)
     val doMes = (cadastrados + mesversario(inicioCasal, ano, mes))
         .filter { it.data.startsWith(prefixoMes) && (filtro == "todos" || it.tipo == filtro) }
@@ -516,7 +517,7 @@ private fun FormularioPlano(
     var tipo by remember { mutableStateOf(editando?.kind?.ifBlank { "outro" } ?: "encontro") }
     var nota by remember { mutableStateOf(editando?.nota ?: "") }
     var confirmarApagar by remember { mutableStateOf(false) }
-    val dataValida = Regex("\\d{4}-\\d{2}-\\d{2}").matches(data.trim())
+    val dataValida = dataIsoOuNull(data) != null
 
     ModalBottomSheet(onDismissRequest = aoFechar, sheetState = estado) {
         Column(

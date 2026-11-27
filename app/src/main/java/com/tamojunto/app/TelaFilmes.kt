@@ -1328,7 +1328,7 @@ private fun FormularioNovaMidia(secao: Secao, dados: DadosDoCasal, aoFechar: () 
     var statusNovo by rememberSaveable { mutableStateOf(secao.statusOpcoes.getOrNull(1)?.first ?: "") }
     var ficha by remember { mutableStateOf<FichaMidia?>(null) }
     var buscando by remember { mutableStateOf(false) }
-    val dataValida = quando.isBlank() || Regex("\\d{4}-\\d{2}-\\d{2}").matches(quando.trim())
+    val dataValida = quando.isBlank() || dataIsoOuNull(quando) != null
 
     LaunchedEffect(titulo, ano, secao) {
         ficha = null

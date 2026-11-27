@@ -76,6 +76,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -1232,6 +1233,8 @@ private fun BotaoAcaoNota(
     conteudo: @Composable () -> Unit
 ) {
     var pressionado by remember { mutableStateOf(false) }
+    // O pointerInput(Unit) não se reinicia; este estado garante que o toque use sempre o onClick atual.
+    val aoTocar by rememberUpdatedState(onClick)
     val escala by animateFloatAsState(
         targetValue = if (pressionado) 0.9f else 1f,
         animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMedium),
@@ -1258,7 +1261,7 @@ private fun BotaoAcaoNota(
                         tryAwaitRelease()
                         pressionado = false
                     },
-                    onTap = { onClick() }
+                    onTap = { aoTocar() }
                 )
             },
         contentAlignment = Alignment.Center

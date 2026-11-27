@@ -123,6 +123,9 @@ data class Nota(
     }
 }
 
+// Data AAAA-MM-DD que existe de verdade (30 de fevereiro não passa). Null se não for uma data válida.
+fun dataIsoOuNull(texto: String): LocalDate? = runCatching { LocalDate.parse(texto.trim()) }.getOrNull()
+
 // "2024-05-01" -> "01/05/2024". Se não for uma data ISO, devolve o texto original.
 fun dataBr(iso: String): String = try {
     LocalDate.parse(iso).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))

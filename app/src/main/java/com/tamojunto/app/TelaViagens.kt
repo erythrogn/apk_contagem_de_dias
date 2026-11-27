@@ -70,7 +70,7 @@ private fun situacaoDe(v: Item): String = when {
 
 // Datas aceitas nos campos: AAAA-MM-DD ou vazio.
 private fun dataValidaOuVazia(texto: String): Boolean =
-    texto.isBlank() || Regex("\\d{4}-\\d{2}-\\d{2}").matches(texto.trim())
+    texto.isBlank() || dataIsoOuNull(texto) != null
 
 private fun dataOuNull(iso: String): LocalDate? = runCatching { LocalDate.parse(iso) }.getOrNull()
 

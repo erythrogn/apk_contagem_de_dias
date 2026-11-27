@@ -1287,7 +1287,7 @@ private fun SheetNovaCoisinha(
     var ingredienteTexto by rememberSaveable { mutableStateOf("") }
     val ingredientes = remember { mutableStateListOf<String>() }
 
-    val dataValida = quando.isBlank() || Regex("\\d{4}-\\d{2}-\\d{2}").matches(quando.trim())
+    val dataValida = quando.isBlank() || dataIsoOuNull(quando) != null
 
     ModalBottomSheet(
         onDismissRequest = aoFechar,
@@ -1490,7 +1490,7 @@ private fun SheetEditarCoisinha(
         mutableStateListOf<IngredienteCompra>().apply { addAll(extra?.shoppingList.orEmpty()) }
     }
 
-    val dataValida = quando.isBlank() || Regex("\\d{4}-\\d{2}-\\d{2}").matches(quando.trim())
+    val dataValida = quando.isBlank() || dataIsoOuNull(quando) != null
 
     ModalBottomSheet(
         onDismissRequest = aoFechar,

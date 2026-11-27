@@ -121,6 +121,7 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.width
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
 import java.time.LocalDate
@@ -519,12 +520,16 @@ class ConcluirEventoCallback : ActionCallback {
         }
 
         try {
+            // As regras exigem updatedBy em qualquer atualização; sem usuário, a gravação falha.
+            val email = FirebaseAuth.getInstance().currentUser?.email
+                ?: throw IllegalStateException("Sem usuário logado")
             val atualizacao: Map<String, Any> = when (colecao) {
                 "filmes" -> mapOf("watched" to true)
                 "series" -> mapOf("done" to true, "status" to "concluida")
                 "jogos" -> mapOf("done" to true, "status" to "zerado")
+                "viagens" -> mapOf("status" to "feita")
                 else -> mapOf("done" to true)
-            }
+            } + mapOf("updatedBy" to email, "updatedAt" to ServerValue.TIMESTAMP)
             FirebaseDatabase.getInstance()
                 .getReference("casais/$casal/$colecao/$chave")
                 .updateChildren(atualizacao)
@@ -1869,7 +1874,7 @@ private fun PainelEditorWidget(
                     }
 
                     "evento" -> {
-                        val dataValida = Regex("\\d{4}-\\d{2}-\\d{2}").matches(dataEvento.trim())
+                        val dataValida = dataIsoOuNull(dataEvento) != null
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedTextField(
                                 value = tituloEvento,
@@ -1919,6 +1924,11 @@ private fun PainelEditorWidget(
                                         feedbackEvento = "Abra o app uma vez para vincular seu casal."
                                         return@Button
                                     }
+                                    val usuario = FirebaseAuth.getInstance().currentUser
+                                    if (usuario == null) {
+                                        feedbackEvento = "Entre no app para adicionar eventos."
+                                        return@Button
+                                    }
                                     salvandoEvento = true
                                     escopo.launch {
                                         try {
@@ -1926,9 +1936,13 @@ private fun PainelEditorWidget(
                                                 .getReference("casais/$casal/$colecaoEvento")
                                                 .push()
                                             val chaveNova = ref.key.orEmpty()
+                                            // As regras exigem autoria na criação (createdBy e createdByUid).
                                             val payload = mutableMapOf<String, Any>(
                                                 "title" to tituloEvento.trim(),
-                                                "targetDate" to dataEvento.trim()
+                                                "targetDate" to dataEvento.trim(),
+                                                "createdBy" to (usuario.email ?: ""),
+                                                "createdByUid" to usuario.uid,
+                                                "createdAt" to ServerValue.TIMESTAMP
                                             )
                                             if (colecaoEvento == "filmes") {
                                                 payload["watched"] = false

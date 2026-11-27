@@ -1,6 +1,7 @@
 package com.tamojunto.app
 
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -51,7 +52,10 @@ object Servidor {
             val pedido = Request.Builder().url("$base/api/auth/session").post(corpo).build()
             logado = cliente.newCall(pedido).execute().use { it.isSuccessful }
             logado
-        } catch (e: IOException) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Rede, token vencido ou erro do Firebase (FirebaseException, ExecutionException): nunca derruba o app.
             logado = false
             false
         }

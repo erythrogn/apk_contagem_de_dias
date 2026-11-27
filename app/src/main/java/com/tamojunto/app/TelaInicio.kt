@@ -261,7 +261,8 @@ private fun InicioDoCasal(dados: DadosDoCasal, usuario: FirebaseUser) {
         item {
             CabecalhoContagem(
                 contagem = contagem,
-                linhaDeData = "desde " + (inicio?.dataExtenso?.ifBlank { null } ?: dataBr(inicioIso)),
+                // Aqui a contagem já existe, então inicioIso não é nulo; o let evita o erro de tipo.
+                linhaDeData = "desde " + (inicio?.dataExtenso?.ifBlank { null } ?: inicioIso?.let(::dataBr).orEmpty()),
                 unidade = unidade,
                 aoMudar = { unidade = it }
             )

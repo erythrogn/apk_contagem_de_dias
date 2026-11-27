@@ -193,7 +193,8 @@ internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Uni
                             role = Role.Tab
                             selected = ativa
                         }
-                        .pointerInput(aba) {
+                        // Com ativa como chave, o toque sempre enxerga se a aba está ativa agora.
+                        .pointerInput(aba, ativa) {
                             detectTapGestures(
                                 onPress = {
                                     pressionada = true
