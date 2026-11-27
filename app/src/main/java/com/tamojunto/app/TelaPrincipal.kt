@@ -90,12 +90,17 @@ fun TelaPrincipal(usuario: FirebaseUser) {
 fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
     // Vazio: menu. Senão, o nome da tela aberta a partir do menu.
     var destino by rememberSaveable { mutableStateOf("") }
-    BackHandler(enabled = destino.isNotEmpty()) { destino = "" }
+    // Amigos volta para Perfil; as outras telas voltam para o menu.
+    BackHandler(enabled = destino.isNotEmpty()) { destino = if (destino == "amigos") "perfil" else "" }
 
     when (destino) {
         "config" -> TelaConfiguracoes(dados, usuario)
-        "calendario" -> ComVoltar(aoVoltar = { destino = "" }) { TelaCalendario(dados) }
-        "viagens" -> ComVoltar(aoVoltar = { destino = "" }) { TelaViagens(dados) }
+        "perfil" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) {
+            TelaPerfil(aoAbrir = { destino = it })
+        }
+        "amigos" -> ComVoltar(rotulo = "Perfil", aoVoltar = { destino = "perfil" }) { TelaAmigos() }
+        "calendario" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaCalendario(dados) }
+        "viagens" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaViagens(dados) }
         else -> Column(
             Modifier
                 .fillMaxSize()
@@ -112,6 +117,13 @@ fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
                 apoio = "Conta, casal e aparência",
                 ativo = true,
                 aoClicar = { destino = "config" }
+            )
+            LinhaMenu(
+                caminhos = listOf("M12 12a4 4 0 1 0 0-.01M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"),
+                titulo = "Perfil",
+                apoio = "Seu @, amigos e pedidos",
+                ativo = true,
+                aoClicar = { destino = "perfil" }
             )
             LinhaMenu(
                 caminhos = listOf("M4 6h16v14H4z", "M4 10h16", "M8 3v4M16 3v4"),
@@ -138,9 +150,9 @@ fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
     }
 }
 
-// Cabeçalho para voltar ao menu Mais, acima de uma tela aberta a partir dele.
+// Cabeçalho para voltar à tela anterior (o menu Mais ou o Perfil), acima da tela aberta.
 @Composable
-private fun ComVoltar(aoVoltar: () -> Unit, conteudo: @Composable () -> Unit) {
+private fun ComVoltar(rotulo: String, aoVoltar: () -> Unit, conteudo: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier
@@ -150,7 +162,7 @@ private fun ComVoltar(aoVoltar: () -> Unit, conteudo: @Composable () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconeLinha(caminhos = listOf("M15 19l-7-7 7-7"), tamanho = 18.dp, cor = Tinta, espessura = 1.5f)
-            Text("Mais", style = EstiloApoio, color = Tinta, modifier = Modifier.padding(start = 6.dp))
+            Text(rotulo, style = EstiloApoio, color = Tinta, modifier = Modifier.padding(start = 6.dp))
         }
         Box(Modifier.weight(1f)) { conteudo() }
     }
