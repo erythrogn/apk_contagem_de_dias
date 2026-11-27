@@ -1,4 +1,3 @@
-cat << 'EOF' > app/src/main/java/com/tamojunto/app/Widgets.kt
 package com.tamojunto.app
 
 import android.content.ComponentName
@@ -48,6 +47,15 @@ import androidx.glance.layout.height
 import androidx.glance.layout.width
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
+import com.tamojunto.app.Contagem
+import com.tamojunto.app.DadosDoCasal
+import com.tamojunto.app.FUSO_BELEM
+import com.tamojunto.app.Item
+import com.tamojunto.app.R
+import com.tamojunto.app.calcularContagem
+import com.tamojunto.app.dataBr
+import com.tamojunto.app.formatarMilhar
+import com.tamojunto.app.numeroDaUnidade
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
