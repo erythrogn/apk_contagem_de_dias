@@ -58,6 +58,14 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_carta" />
         </receiver>
+        <activity
+            android:name=".WidgetEditorActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>

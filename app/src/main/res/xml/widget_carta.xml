@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+<appwidget-provider
+    android:configure="com.tamojunto.app.WidgetEditorActivity"
+    android:widgetFeatures="reconfigurable" xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_carta_descricao"
     android:initialLayout="@layout/glance_default_loading_layout"
     android:minWidth="110dp"
