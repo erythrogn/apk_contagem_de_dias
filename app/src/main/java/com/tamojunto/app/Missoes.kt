@@ -38,9 +38,6 @@ import org.json.JSONObject
 
 // ─── Dados do Laço, das Missões e do Céu, como o site os entrega em /api/missoes e /api/ceu ───
 
-data class RegraLaco(val categoria: String, val limite: Int, val atividades: List<Pair<String, Int>>)
-data class LimiteHoje(val categoria: String, val usado: Int, val limite: Int)
-
 data class LacoDetalhe(
     val nivel: Int,
     val total: Int,
@@ -94,7 +91,7 @@ private fun JSONObject.lacoDetalhe(): LacoDetalhe = LacoDetalhe(
         RegraLaco(
             categoria = r.txt("categoria"),
             limite = r.optInt("limite"),
-            atividades = r.optJSONArray("atividades")?.objs()?.map { a -> a.txt("rotulo") to a.optInt("xp") }.orEmpty()
+            atividades = r.optJSONArray("atividades")?.objs()?.map { a -> AtividadeLaco(a.txt("rotulo"), a.optInt("xp")) }.orEmpty()
         )
     }.orEmpty(),
     limitesHoje = optJSONArray("limites_hoje")?.objs()?.map { l ->
@@ -211,10 +208,10 @@ internal fun CartaoLaco(laco: LacoDetalhe) {
             laco.regras.forEach { grupo ->
                 Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
                     Text("${grupo.categoria} · até ${grupo.limite} XP por dia", style = EstiloRotulo, color = Tinta)
-                    grupo.atividades.forEach { (rotulo, xp) ->
+                    grupo.atividades.forEach { atividade ->
                         Row(Modifier.fillMaxWidth()) {
-                            Text(rotulo, style = EstiloRotulo, color = TintaSuave, modifier = Modifier.weight(1f))
-                            Text("$xp XP", style = EstiloRotulo, color = TintaSuave)
+                            Text(atividade.rotulo, style = EstiloRotulo, color = TintaSuave, modifier = Modifier.weight(1f))
+                            Text("${atividade.xp} XP", style = EstiloRotulo, color = TintaSuave)
                         }
                     }
                 }
