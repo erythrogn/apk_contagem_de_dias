@@ -61,7 +61,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.PathParser
 
 private val DockSuperficie = Color(0xFFFBF8EC)
-private val DockSuperficieBase = Color(0xFFF4EEDB)
+private val DockSuperficieBase = Color(0xFFF2EAD5)
 private val DockBorda = Color(0xFFD6BE7A)
 
 @Composable
@@ -99,24 +99,24 @@ internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Uni
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 26.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
             modifier = Modifier
                 .wrapContentWidth()
                 .shadow(
-                    elevation = 18.dp,
+                    elevation = 28.dp,
                     shape = RoundedCornerShape(999.dp),
-                    spotColor = Tinta.copy(alpha = 0.22f),
-                    ambientColor = Tinta.copy(alpha = 0.10f)
+                    spotColor = Tinta.copy(alpha = 0.34f),
+                    ambientColor = Tinta.copy(alpha = 0.18f)
                 )
                 .clip(RoundedCornerShape(999.dp))
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            DockSuperficie.copy(alpha = 0.97f),
-                            DockSuperficieBase.copy(alpha = 0.96f)
+                            DockSuperficie.copy(alpha = 0.88f),
+                            DockSuperficieBase.copy(alpha = 0.84f)
                         )
                     )
                 )
@@ -124,14 +124,14 @@ internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Uni
                     width = 1.dp,
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.85f),
-                            DockBorda.copy(alpha = 0.85f)
+                            Color.White.copy(alpha = 0.95f),
+                            DockBorda.copy(alpha = 0.92f)
                         )
                     ),
                     shape = RoundedCornerShape(999.dp)
                 )
-                .padding(horizontal = 8.dp, vertical = 7.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(horizontal = 9.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             abas.forEach { aba ->
@@ -144,19 +144,19 @@ internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Uni
                     label = "corIconeDock"
                 )
                 val fundoPilula by animateColorAsState(
-                    targetValue = if (ativa) Ouro.copy(alpha = 0.26f) else Color.Transparent,
+                    targetValue = if (ativa) Ouro.copy(alpha = 0.30f) else Color.Transparent,
                     animationSpec = tween(durationMillis = 240),
                     label = "fundoPilulaDock"
                 )
                 val bordaPilula by animateColorAsState(
-                    targetValue = if (ativa) DockBorda.copy(alpha = 0.9f) else Color.Transparent,
+                    targetValue = if (ativa) DockBorda.copy(alpha = 0.95f) else Color.Transparent,
                     animationSpec = tween(durationMillis = 240),
                     label = "bordaPilulaDock"
                 )
                 val escala by animateFloatAsState(
                     targetValue = when {
                         pressionada -> 0.92f
-                        ativa -> 1.04f
+                        ativa -> 1.05f
                         else -> 1f
                     },
                     animationSpec = spring(
@@ -166,7 +166,7 @@ internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Uni
                     label = "escalaItemDock"
                 )
                 val elevacaoVertical by animateDpAsState(
-                    targetValue = if (ativa) (-1.5).dp else 0.dp,
+                    targetValue = if (ativa) (-2).dp else 0.dp,
                     animationSpec = spring(
                         dampingRatio = 0.72f,
                         stiffness = Spring.StiffnessMediumLow
