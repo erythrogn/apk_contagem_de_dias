@@ -320,9 +320,8 @@ fun TelaCoisinhas(dados: DadosDoCasal) {
         LazyColumn(
             state = listState,
             modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 96.dp),
+                .fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = LocalAlturaDock.current),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Cabeçalho minimalista mobile

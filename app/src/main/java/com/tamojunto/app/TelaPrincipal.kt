@@ -11,7 +11,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateBottomPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -25,7 +32,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseUser
@@ -92,19 +98,22 @@ fun TelaPrincipal(usuario: FirebaseUser) {
 
     var aba by rememberSaveable { mutableStateOf(Aba.INICIO) }
 
-    Scaffold(
-        containerColor = Color.Transparent,
-        bottomBar = {
-            BarraInferior(abas = Aba.entries, atual = aba, aoEscolher = { aba = it })
-        }
-    ) { espaco ->
-        Box(modifier = Modifier.padding(espaco)) {
-            when (aba) {
-                Aba.INICIO -> TelaInicio(dados, usuario)
-                Aba.NOTAS -> TelaNotas(dados)
-                Aba.FILMES -> TelaFilmes(dados)
-                Aba.COISINHAS -> TelaCoisinhas(dados)
-                Aba.MAIS -> TelaMais(dados, usuario)
+    // Páginas em tela cheia: a tela desenha atrás das barras do sistema, e só o topo fica abaixo
+    // da barra de status. A barra flutua por cima do fim da tela, e as listas reservam espaço para ela.
+    val areaGesto = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    CompositionLocalProvider(LocalAlturaDock provides AlturaBarraInferior + areaGesto) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                when (aba) {
+                    Aba.INICIO -> TelaInicio(dados, usuario)
+                    Aba.NOTAS -> TelaNotas(dados)
+                    Aba.FILMES -> TelaFilmes(dados)
+                    Aba.COISINHAS -> TelaCoisinhas(dados)
+                    Aba.MAIS -> TelaMais(dados, usuario)
+                }
+            }
+            Box(modifier = Modifier.align(Alignment.BottomCenter)) {
+                BarraInferior(abas = Aba.entries, atual = aba, aoEscolher = { aba = it })
             }
         }
     }
@@ -152,7 +161,8 @@ fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
                 .fillMaxSize()
                 .padding(12.dp)
                 .papelDoSite()
-                .padding(20.dp),
+                .padding(20.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text("Mais", style = EstiloTituloSecao, textAlign = TextAlign.Center)
@@ -199,6 +209,8 @@ fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
                 ativo = true,
                 aoClicar = { destino = "ceu" }
             )
+            // Espaço para o último item não ficar embaixo da barra flutuante.
+            Spacer(Modifier.height(LocalAlturaDock.current))
         }
     }
 }

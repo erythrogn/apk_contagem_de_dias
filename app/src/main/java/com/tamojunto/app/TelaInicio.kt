@@ -255,7 +255,7 @@ private fun InicioDoCasal(dados: DadosDoCasal, usuario: FirebaseUser) {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(12.dp).papelDoSite().padding(20.dp),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = LocalAlturaDock.current),
         verticalArrangement = Arrangement.spacedBy(30.dp)
     ) {
         item {

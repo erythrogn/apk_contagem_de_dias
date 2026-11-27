@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,6 +65,11 @@ private val DockSuperficie = Color(0xFFFBF8EC)
 private val DockSuperficieBase = Color(0xFFF2EAD5)
 private val DockBorda = Color(0xFFD6BE7A)
 
+// Espaço que as listas deixam no fim para a barra flutuante não cobrir o conteúdo.
+// TelaPrincipal soma a área de gesto do sistema a este valor.
+internal val AlturaBarraInferior = 112.dp
+internal val LocalAlturaDock = compositionLocalOf { AlturaBarraInferior }
+
 @Composable
 internal fun IconeLinha(caminhos: List<String>, tamanho: Dp, cor: Color, espessura: Float = 1.25f) {
     val prontos = remember(caminhos) {
@@ -99,14 +105,14 @@ internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Uni
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 26.dp),
+            .padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 22.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
             modifier = Modifier
                 .wrapContentWidth()
                 .shadow(
-                    elevation = 28.dp,
+                    elevation = 34.dp,
                     shape = RoundedCornerShape(999.dp),
                     spotColor = Tinta.copy(alpha = 0.34f),
                     ambientColor = Tinta.copy(alpha = 0.18f)

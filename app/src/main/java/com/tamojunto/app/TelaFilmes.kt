@@ -304,9 +304,8 @@ fun TelaFilmes(dados: DadosDoCasal) {
             state = gridState,
             columns = GridCells.Fixed(if (modo == "capas") 2 else 1),
             modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 96.dp),
+                .fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = LocalAlturaDock.current),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
