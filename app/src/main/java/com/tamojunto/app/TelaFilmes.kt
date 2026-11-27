@@ -9,6 +9,20 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.util.lerp
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,6 +37,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -117,7 +132,7 @@ private fun notasDoCasal(item: Item, eu: String?): Pair<Int, Int> = when (eu) {
 
 // Capa. Sem capa, mostra o título no papel do site.
 @Composable
-private fun CapaMidia(poster: String, titulo: String, modifier: Modifier = Modifier) {
+private fun CapaMidia(poster: String, titulo: String, modifier: Modifier = Modifier, cinza: Boolean = false) {
     Box(
         modifier
             .clip(RoundedCornerShape(4.dp))
@@ -129,6 +144,7 @@ private fun CapaMidia(poster: String, titulo: String, modifier: Modifier = Modif
                 model = poster,
                 contentDescription = titulo,
                 contentScale = ContentScale.Crop,
+                colorFilter = if (cinza) ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) else null,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
@@ -242,6 +258,7 @@ fun TelaFilmes(dados: DadosDoCasal) {
                 ) {
                     FiltroSite(texto = "Capas", ativo = modo == "capas", aoClicar = { modo = "capas" })
                     FiltroSite(texto = "Lista", ativo = modo == "lista", aoClicar = { modo = "lista" })
+                    FiltroSite(texto = "Carrossel", ativo = modo == "destaque", aoClicar = { modo = "destaque" })
                 }
                 Text("Mostrar", style = EstiloRotulo, color = TintaSuave)
                 Row(
@@ -275,6 +292,13 @@ fun TelaFilmes(dados: DadosDoCasal) {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 )
+            }
+        } else if (modo == "destaque") {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                // Trocar de filtro recria o carrossel, que volta ao primeiro item.
+                key(secao, statusEscolhido, generoEscolhido) {
+                    DestaqueFilmes(visiveis = visiveis, secao = secao, aoAbrir = { chaveAberta = it })
+                }
             }
         } else if (modo == "capas") {
             items(visiveis, key = { it.chave }) { midia ->
@@ -314,6 +338,166 @@ fun TelaFilmes(dados: DadosDoCasal) {
             aoAbrirTrailer = { url -> contexto.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
             aoFechar = { chaveAberta = null }
         )
+    }
+}
+
+// Carrossel de destaque, como no site: a capa do centro em tamanho cheio, as vizinhas menores
+// e esmaecidas. Desliza com o dedo, tem setas, contador, faixa de miniaturas e o título embaixo.
+@Composable
+private fun DestaqueFilmes(visiveis: List<Item>, secao: Secao, aoAbrir: (String) -> Unit) {
+    val total = visiveis.size
+    val pagerState = rememberPagerState(pageCount = { total })
+    val escopo = rememberCoroutineScope()
+    val atual = pagerState.currentPage
+    val listaMiniaturas = rememberLazyListState()
+
+    // A faixa de miniaturas acompanha o item do centro.
+    LaunchedEffect(atual) { listaMiniaturas.animateScrollToItem(atual) }
+
+    // O progresso da barra desliza até a posição nova.
+    val progresso by animateFloatAsState(
+        targetValue = (atual + 1).toFloat() / total,
+        animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
+        label = "progressoCarrossel"
+    )
+
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxWidth().height(430.dp),
+            contentPadding = PaddingValues(horizontal = 58.dp),
+            pageSpacing = 14.dp
+        ) { pagina ->
+            val midia = visiveis[pagina]
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .shadow(elevation = 16.dp, shape = RoundedCornerShape(4.dp), ambientColor = Tinta, spotColor = Tinta)
+                    // Quanto mais perto do centro, maior e mais nítida. A escala é lida no desenho, sem recompor.
+                    .graphicsLayer {
+                        val distancia = abs((pagerState.currentPage - pagina) + pagerState.currentPageOffsetFraction)
+                        val proximidade = 1f - distancia.coerceIn(0f, 1f)
+                        scaleX = lerp(0.84f, 1f, proximidade)
+                        scaleY = scaleX
+                        alpha = lerp(0.45f, 1f, proximidade)
+                    }
+                    .clickable { aoAbrir(midia.chave) }
+            ) {
+                CapaMidia(
+                    poster = midia.poster,
+                    titulo = midia.titulo,
+                    cinza = midia.feito,
+                    modifier = Modifier.fillMaxSize().border(1.dp, Ouro.copy(alpha = 0.8f), RoundedCornerShape(4.dp))
+                )
+            }
+        }
+
+        // Setas nas pontas e o contador no meio, com a barra de progresso embaixo.
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BotaoSeta(
+                caminho = "M15 19l-7-7 7-7",
+                habilitado = atual > 0,
+                aoClicar = { escopo.launch { pagerState.animateScrollToPage(atual - 1) } }
+            )
+            Column(Modifier.weight(1f).padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("${atual + 1} de $total", style = EstiloRotulo, color = TintaSuave)
+                Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(2.dp).background(Tinta.copy(alpha = 0.12f))) {
+                    Box(Modifier.fillMaxWidth(progresso).height(2.dp).background(Ouro))
+                }
+            }
+            BotaoSeta(
+                caminho = "M9 18l6-6-6-6",
+                habilitado = atual < total - 1,
+                aoClicar = { escopo.launch { pagerState.animateScrollToPage(atual + 1) } }
+            )
+        }
+
+        // Título e a ficha. Ao trocar de item, o texto dá uma leve transição.
+        Crossfade(targetState = atual, label = "textoCarrossel") { pagina ->
+            visiveis.getOrNull(pagina)?.let { midia ->
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        midia.titulo.ifBlank { "Sem título" },
+                        style = EstiloTituloSecao,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    val meta = listOf(midia.ano, midia.genero, secao.situacaoDe(midia)).filter { it.isNotBlank() }
+                    Text(meta.joinToString(" · "), style = EstiloRotulo, color = TintaSuave, textAlign = TextAlign.Center)
+                    BotaoSite(
+                        texto = "Abrir ficha",
+                        aoClicar = { aoAbrir(midia.chave) },
+                        primario = true,
+                        modifier = Modifier.width(180.dp)
+                    )
+                }
+            }
+        }
+
+        // Faixa de miniaturas: o item do centro fica destacado; tocar numa miniatura leva até ela.
+        LazyRow(
+            state = listaMiniaturas,
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            itemsIndexed(visiveis, key = { _, midia -> midia.chave }) { indice, midia ->
+                val selecionada = indice == atual
+                val escala by animateFloatAsState(
+                    targetValue = if (selecionada) 1f else 0.9f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                    label = "miniatura"
+                )
+                CapaMidia(
+                    poster = midia.poster,
+                    titulo = midia.titulo,
+                    cinza = midia.feito,
+                    modifier = Modifier
+                        .width(54.dp)
+                        .aspectRatio(2f / 3f)
+                        .graphicsLayer {
+                            scaleX = escala
+                            scaleY = escala
+                            alpha = if (selecionada) 1f else 0.7f
+                        }
+                        .then(if (selecionada) Modifier.border(2.dp, Ouro, RoundedCornerShape(4.dp)) else Modifier)
+                        .clickable { escopo.launch { pagerState.animateScrollToPage(indice) } }
+                )
+            }
+        }
+    }
+}
+
+// Seta redonda do carrossel: some para o tamanho do toque quando não há mais para onde ir.
+@Composable
+private fun BotaoSeta(caminho: String, habilitado: Boolean, aoClicar: () -> Unit) {
+    val opacidade by animateFloatAsState(
+        targetValue = if (habilitado) 1f else 0.35f,
+        label = "opacidadeSeta"
+    )
+    Box(
+        Modifier
+            .size(44.dp)
+            .graphicsLayer { alpha = opacidade }
+            .clip(RoundedCornerShape(4.dp))
+            .background(Papel)
+            .border(1.dp, Ouro, RoundedCornerShape(4.dp))
+            .clickable(enabled = habilitado, onClick = aoClicar),
+        contentAlignment = Alignment.Center
+    ) {
+        IconeLinha(caminhos = listOf(caminho), tamanho = 20.dp, cor = Tinta)
     }
 }
 
