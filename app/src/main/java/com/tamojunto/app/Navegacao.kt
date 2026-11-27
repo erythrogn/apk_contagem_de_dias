@@ -1,8 +1,22 @@
+Mantive exatamente as mesmas assinaturas (`IconeLinha`, `EstiloMenu` e `BarraInferior`), tokens de tema (`Papel`, `Ouro`, `Tinta`, `TintaSuave`, `Sem`) e propriedades de `Aba`, modernizando a barra com:
+
+* **Transições fluidas a 60fps:** `animateColorAsState`, `animateDpAsState` e `animateFloatAsState` (via `graphicsLayer`) para suavizar a troca de cor, a expansão do filete dourado inferior e o destaque do ícone ativo.
+* **Pílula sutil no ícone ativo:** fundo translúcido em `Ouro` (`16%` de opacidade) com cantos arredondados que destaca a aba selecionada sem pesar no visual de papel.
+* **Acabamento editorial:** filete superior com gradiente dourado suave, sombra discreta de elevação e remoção do ripple retangular padrão do Compose no clique.
+
+```kotlin
 package com.tamojunto.app
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,26 +27,34 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.PathParser
 
-// Ícone de traço fino e arredondado, desenhado sobre viewBox 24, como os humores e as estrelas.
 @Composable
 internal fun IconeLinha(caminhos: List<String>, tamanho: Dp, cor: Color, espessura: Float = 1.25f) {
     val prontos = remember(caminhos) {
@@ -52,47 +74,130 @@ internal fun IconeLinha(caminhos: List<String>, tamanho: Dp, cor: Color, espessu
     }
 }
 
-// Rótulos da barra inferior: Montserrat semibold, pequeno e sem caixa-alta.
 internal val EstiloMenu = TextStyle(
     fontFamily = Sem,
     fontWeight = FontWeight.SemiBold,
     fontSize = 11.sp,
-    lineHeight = 14.sp
+    lineHeight = 14.sp,
+    letterSpacing = 0.2.sp
 )
 
-// Barra inferior no papel do site: filete dourado no topo e, na aba ativa, um traço dourado embaixo.
 @Composable
 internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Unit) {
-    Column(Modifier.fillMaxWidth().background(Papel)) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Ouro.copy(alpha = 0.8f)))
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 8.dp,
+                spotColor = Tinta.copy(alpha = 0.08f),
+                ambientColor = Tinta.copy(alpha = 0.04f)
+            )
+            .background(Papel)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(0.8.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Ouro.copy(alpha = 0.25f),
+                            Ouro.copy(alpha = 0.85f),
+                            Ouro.copy(alpha = 0.25f)
+                        )
+                    )
+                )
+        )
         Row(
-            Modifier
+            modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
+                .padding(horizontal = 8.dp, vertical = 7.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             abas.forEach { aba ->
                 val ativa = aba == atual
-                val cor = if (ativa) Tinta else TintaSuave
+                val cor by animateColorAsState(
+                    targetValue = if (ativa) Tinta else TintaSuave,
+                    animationSpec = tween(durationMillis = 220),
+                    label = "corAba"
+                )
+                val fundoPilula by animateColorAsState(
+                    targetValue = if (ativa) Ouro.copy(alpha = 0.16f) else Color.Transparent,
+                    animationSpec = tween(durationMillis = 220),
+                    label = "fundoPilulaAba"
+                )
+                val larguraTraco by animateDpAsState(
+                    targetValue = if (ativa) 20.dp else 0.dp,
+                    animationSpec = spring(
+                        dampingRatio = 0.78f,
+                        stiffness = Spring.StiffnessMediumLow
+                    ),
+                    label = "tracoAba"
+                )
+                val escalaIcone by animateFloatAsState(
+                    targetValue = if (ativa) 1.06f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = 0.72f,
+                        stiffness = Spring.StiffnessMedium
+                    ),
+                    label = "escalaIconeAba"
+                )
+
                 Column(
-                    Modifier
+                    modifier = Modifier
                         .weight(1f)
-                        .clickable { aoEscolher(aba) }
-                        .padding(vertical = 4.dp),
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            role = Role.Tab
+                        ) { aoEscolher(aba) }
+                        .padding(vertical = 2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    IconeLinha(caminhos = aba.caminhos, tamanho = 24.dp, cor = cor, espessura = aba.espessura)
-                    Text(aba.rotulo, style = EstiloMenu, color = cor, modifier = Modifier.padding(top = 4.dp))
                     Box(
-                        Modifier
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(fundoPilula)
+                            .padding(horizontal = 14.dp, vertical = 5.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = escalaIcone
+                                scaleY = escalaIcone
+                            }
+                        ) {
+                            IconeLinha(
+                                caminhos = aba.caminhos,
+                                tamanho = 22.dp,
+                                cor = cor,
+                                espessura = if (ativa) aba.espessura + 0.15f else aba.espessura
+                            )
+                        }
+                    }
+                    Text(
+                        text = aba.rotulo,
+                        style = EstiloMenu,
+                        color = cor,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    Box(
+                        modifier = Modifier
                             .padding(top = 4.dp)
-                            .width(20.dp)
-                            .height(2.dp)
-                            .background(if (ativa) Ouro else Color.Transparent)
+                            .width(larguraTraco)
+                            .height(2.5.dp)
+                            .clip(CircleShape)
+                            .background(Ouro)
                     )
                 }
             }
         }
     }
 }
+
+```
