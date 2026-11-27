@@ -36,15 +36,19 @@ fun DialogoConfirmar(
 ) {
     AlertDialog(
         onDismissRequest = aoFechar,
-        title = { Text(titulo) },
-        text = { Text(texto) },
+        containerColor = Papel,
+        shape = RoundedCornerShape(4.dp),
+        title = { Text(titulo, style = EstiloTituloSecao, color = Tinta) },
+        text = { Text(texto, style = EstiloApoio, color = TintaSuave) },
         confirmButton = {
             TextButton(onClick = {
                 aoConfirmar()
                 aoFechar()
-            }) { Text(rotuloConfirmar) }
+            }) { Text(rotuloConfirmar, style = EstiloBotao, color = Tinta) }
         },
-        dismissButton = { TextButton(onClick = aoFechar) { Text("Cancelar") } }
+        dismissButton = {
+            TextButton(onClick = aoFechar) { Text("Cancelar", style = EstiloBotao, color = TintaSuave) }
+        }
     )
 }
 

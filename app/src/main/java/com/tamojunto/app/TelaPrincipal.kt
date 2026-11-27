@@ -1,42 +1,60 @@
 package com.tamojunto.app
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseUser
 
 // Menu inferior: as mesmas abas da barra do site (Início, Notas, Filmes, Coisinhas e Mais).
-enum class Aba(val rotulo: String, val icone: ImageVector) {
-    INICIO("Início", Icons.Filled.Home),
-    NOTAS("Notas", Icons.Filled.Edit),
-    FILMES("Filmes", Icons.Filled.PlayArrow),
-    COISINHAS("Coisinhas", Icons.Filled.Favorite),
-    MAIS("Mais", Icons.Filled.Menu)
+// Os traços dos ícones seguem o estilo dos humores e das estrelas, sem caractere nem emoji.
+enum class Aba(val rotulo: String, val caminhos: List<String>) {
+    INICIO(
+        "Início",
+        listOf("M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z")
+    ),
+    NOTAS(
+        "Notas",
+        listOf(
+            "M6 3h9l3 3v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",
+            "M9 11h6M9 15h6M9 19h3"
+        )
+    ),
+    FILMES(
+        "Filmes",
+        listOf("M3 6h18v13H3z", "M3 10h18", "M7 6l2 4M12 6l2 4M17 6l2 4")
+    ),
+    COISINHAS(
+        "Coisinhas",
+        listOf("M12 20s-7-4.4-7-9.5A3.8 3.8 0 0 1 12 8a3.8 3.8 0 0 1 7 2.5C19 15.6 12 20 12 20z")
+    ),
+    MAIS(
+        "Mais",
+        listOf("M4 7h16M4 12h16M4 17h16")
+    )
 }
 
 @Composable
@@ -52,18 +70,9 @@ fun TelaPrincipal(usuario: FirebaseUser) {
     var aba by rememberSaveable { mutableStateOf(Aba.INICIO) }
 
     Scaffold(
-        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        containerColor = Color.Transparent,
         bottomBar = {
-            NavigationBar {
-                Aba.entries.forEach { item ->
-                    NavigationBarItem(
-                        selected = aba == item,
-                        onClick = { aba = item },
-                        icon = { Icon(item.icone, contentDescription = item.rotulo) },
-                        label = { Text(item.rotulo) }
-                    )
-                }
-            }
+            BarraInferior(abas = Aba.entries, atual = aba, aoEscolher = { aba = it })
         }
     ) { espaco ->
         Box(modifier = Modifier.padding(espaco)) {
@@ -85,16 +94,77 @@ fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
 
     if (emConfiguracoes) {
         TelaConfiguracoes(dados, usuario)
-    } else {
-        Column(modifier = Modifier.padding(24.dp)) {
-            Text("Mais", style = MaterialTheme.typography.headlineMedium)
-            Text(
-                "Missões, calendário e viagens ainda não foram portados para o app.",
-                modifier = Modifier.padding(top = 8.dp)
-            )
-            Button(onClick = { emConfiguracoes = true }, modifier = Modifier.padding(top = 24.dp)) {
-                Text("Configurações")
+        return
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(12.dp)
+            .papelDoSite()
+            .padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Mais", style = EstiloTituloSecao, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(18.dp))
+        LinhaMenu(
+            caminhos = listOf("M4 7h9M17 7h3M4 17h3M11 17h9", "M14 5v4M7 15v4"),
+            titulo = "Configurações",
+            apoio = "Conta, casal e aparência",
+            ativo = true,
+            aoClicar = { emConfiguracoes = true }
+        )
+        LinhaMenu(
+            caminhos = listOf("M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.6 6.7 19.1l1-5.8-4.2-4.1 5.9-.9z"),
+            titulo = "Missões",
+            apoio = "Em breve no app",
+            ativo = false,
+            aoClicar = {}
+        )
+        LinhaMenu(
+            caminhos = listOf("M4 6h16v14H4z", "M4 10h16", "M8 3v4M16 3v4"),
+            titulo = "Calendário",
+            apoio = "Em breve no app",
+            ativo = false,
+            aoClicar = {}
+        )
+        LinhaMenu(
+            caminhos = listOf("M3 12h18", "M12 3c3 3.5 3 14.5 0 18", "M12 3c-3 3.5-3 14.5 0 18"),
+            titulo = "Viagens",
+            apoio = "Em breve no app",
+            ativo = false,
+            aoClicar = {}
+        )
+    }
+}
+
+// Linha do menu Mais: ícone de traço, título em itálico serifado e um apoio pequeno, com seta à direita.
+@Composable
+private fun LinhaMenu(
+    caminhos: List<String>,
+    titulo: String,
+    apoio: String,
+    ativo: Boolean,
+    aoClicar: () -> Unit
+) {
+    val cor = if (ativo) Tinta else TintaSuave
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(enabled = ativo, onClick = aoClicar)
+                .padding(vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconeLinha(caminhos = caminhos, tamanho = 26.dp, cor = cor)
+            Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                Text(titulo, style = EstiloApoio, color = cor)
+                Text(apoio, style = EstiloRotulo, color = TintaSuave)
+            }
+            if (ativo) {
+                IconeLinha(caminhos = listOf("M9 6l6 6-6 6"), tamanho = 18.dp, cor = TintaSuave)
             }
         }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Tinta.copy(alpha = 0.12f)))
     }
 }
