@@ -28,7 +28,16 @@ data class Item(
     val status: String,
     val categoria: String,
     val notas: String,
-    val dataIso: String = ""
+    val dataIso: String = "",
+    // Campos de filmes, séries e jogos (os mesmos nomes do banco usados pelo site).
+    val poster: String = "",
+    val diretor: String = "",
+    val elenco: String = "",
+    val trailer: String = "",
+    val onde: String = "",
+    val plataforma: String = "",
+    val nota1: Int = 0,
+    val nota2: Int = 0
 ) {
     companion object {
         fun de(chave: String, s: DataSnapshot, secao: String): Item {
@@ -53,7 +62,15 @@ data class Item(
                 feito = feito,
                 status = texto("status"),
                 categoria = texto("category"),
-                notas = texto("notes")
+                notas = texto("notes"),
+                poster = texto("poster"),
+                diretor = texto("director"),
+                elenco = texto("cast"),
+                trailer = texto("trailer"),
+                onde = texto("where"),
+                plataforma = texto("platform"),
+                nota1 = texto("ratingPessoa1").toDoubleOrNull()?.toInt() ?: 0,
+                nota2 = texto("ratingPessoa2").toDoubleOrNull()?.toInt() ?: 0
             )
         }
     }

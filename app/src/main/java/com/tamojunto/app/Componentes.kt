@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -97,5 +100,23 @@ internal fun FiltroSite(
             Spacer(Modifier.width(6.dp))
         }
         Text(texto, style = EstiloChip, color = Tinta, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+// Aba de seção (Filmes, Séries, Jogos): texto em itálico com o filete dourado embaixo quando ativa.
+@Composable
+internal fun AbaSite(texto: String, ativa: Boolean, aoClicar: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier.clickable(onClick = aoClicar).padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(texto, style = EstiloApoio, color = if (ativa) Tinta else TintaSuave)
+        Box(
+            Modifier
+                .padding(top = 2.dp)
+                .width(32.dp)
+                .height(1.dp)
+                .background(if (ativa) Ouro else Color.Transparent)
+        )
     }
 }
