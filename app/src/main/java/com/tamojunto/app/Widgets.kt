@@ -60,7 +60,18 @@ import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class EventoWidget(val titulo: String, val data: String, val tipo: String)
+data class EventoWidget(
+    val titulo: String,
+    val data: String,
+    val tipo: String,
+    val chave: String = "",
+    val colecao: String = ""
+)
+
+data class CartaRecebidaWidget(
+    val texto: String,
+    val de: String
+)
 
 data class DadosWidget(
     val inicio: String?,
@@ -70,7 +81,8 @@ data class DadosWidget(
     val slot: String? = null,
     val cartasNovas: Int = 0,
     val ultimaTexto: String = "",
-    val ultimaDe: String = ""
+    val ultimaDe: String = "",
+    val cartasRecebidas: List<CartaRecebidaWidget> = emptyList()
 )
 
 private const val ARQUIVO_WIDGETS = "widgets_casal"
@@ -80,6 +92,13 @@ private const val CHAVE_CASAL = "casal"
 private const val CHAVE_SLOT = "slot"
 private const val CHAVE_STATUS = "status_carta"
 private const val CHAVE_STATUS_EM = "status_carta_em"
+private const val CHAVE_STATUS_CONTAGEM = "status_contagem"
+private const val CHAVE_STATUS_CONTAGEM_EM = "status_contagem_em"
+private const val CHAVE_STATUS_EVENTO = "status_evento"
+private const val CHAVE_STATUS_EVENTO_EM = "status_evento_em"
+private const val CHAVE_PAGINA_EVENTOS = "pagina_eventos"
+private const val CHAVE_INDICE_CARTA = "indice_carta"
+private const val CHAVE_PAGINA_FRASES = "pagina_frases"
 
 private val FundoContagemTopo = Color(0xFFF9F2E2)
 private val FundoContagemBase = Color(0xFFEFE1C3)
@@ -102,11 +121,19 @@ private val OcrePastel = Color(0xFF8F6B38)
 private val SeloMesPastel = Color(0xFFF4E4C1)
 private val UrgenteFundoPastel = Color(0xFFF3DFBA)
 
-private val MENSAGENS_RAPIDAS = listOf("Pensando em você", "Saudade de você", "Te amo", "Boa noite")
+private val PAGINAS_MENSAGENS_RAPIDAS = listOf(
+    listOf("Pensando em você", "Saudade de você", "Te amo", "Boa noite"),
+    listOf("Bom dia, amor", "Tô chegando", "Quero te ver", "Tudo bem aí?")
+)
 
 private val ChaveAcao = ActionParameters.Key<String>("acao")
 private val ChaveUnidade = ActionParameters.Key<String>("unidade")
 private val ChaveTextoCarta = ActionParameters.Key<String>("texto")
+private val ChaveOrigemStatus = ActionParameters.Key<String>("origem")
+private val ChaveEventoId = ActionParameters.Key<String>("evento_chave")
+private val ChaveEventoColecao = ActionParameters.Key<String>("evento_colecao")
+private val ChaveEventoTitulo = ActionParameters.Key<String>("evento_titulo")
+private val ChaveDelta = ActionParameters.Key<Int>("delta")
 
 object PedidosWidget {
     var cartaPendente by mutableStateOf(false)
@@ -122,7 +149,21 @@ private fun prefsWidgets(contexto: Context) =
 fun salvarDadosWidget(contexto: Context, dados: DadosWidget) {
     val eventos = JSONArray()
     dados.eventos.forEach { evento ->
-        eventos.put(JSONObject().put("t", evento.titulo).put("d", evento.data).put("r", evento.tipo))
+        eventos.put(
+            JSONObject()
+                .put("t", evento.titulo)
+                .put("d", evento.data)
+                .put("r", evento.tipo)
+                .put("k", evento.chave)
+                .put("c", evento.colecao)
+        )
+    }
+    val cartas = JSONArray()
+    val listaCartas = dados.cartasRecebidas.ifEmpty {
+        if (dados.ultimaTexto.isNotBlank()) listOf(CartaRecebidaWidget(dados.ultimaTexto, dados.ultimaDe)) else emptyList()
+    }
+    listaCartas.forEach { carta ->
+        cartas.put(JSONObject().put("t", carta.texto).put("d", carta.de))
     }
     val json = JSONObject()
         .put("inicio", dados.inicio ?: "")
@@ -131,10 +172,12 @@ fun salvarDadosWidget(contexto: Context, dados: DadosWidget) {
         .put("cartasNovas", dados.cartasNovas)
         .put("ultimaTexto", dados.ultimaTexto)
         .put("ultimaDe", dados.ultimaDe)
+        .put("cartasRecebidas", cartas)
     prefsWidgets(contexto).edit()
         .putString(CHAVE_WIDGETS, json.toString())
         .putString(CHAVE_CASAL, dados.casal ?: "")
         .putString(CHAVE_SLOT, dados.slot ?: "")
+        .putInt(CHAVE_INDICE_CARTA, 0)
         .apply()
 }
 
@@ -146,15 +189,34 @@ fun lerDadosWidget(contexto: Context): DadosWidget {
         val lista = json.optJSONArray("eventos") ?: JSONArray()
         val eventos = (0 until lista.length()).map { i ->
             val e = lista.getJSONObject(i)
-            EventoWidget(e.optString("t"), e.optString("d"), e.optString("r"))
+            EventoWidget(
+                titulo = e.optString("t"),
+                data = e.optString("d"),
+                tipo = e.optString("r"),
+                chave = e.optString("k"),
+                colecao = e.optString("c")
+            )
         }
+        val arrCartas = json.optJSONArray("cartasRecebidas") ?: JSONArray()
+        val cartas = (0 until arrCartas.length()).mapNotNull { i ->
+            val c = arrCartas.optJSONObject(i) ?: return@mapNotNull null
+            val t = c.optString("t")
+            if (t.isBlank()) null else CartaRecebidaWidget(t, c.optString("d"))
+        }
+        val ultimaTexto = json.optString("ultimaTexto")
+        val ultimaDe = json.optString("ultimaDe")
         DadosWidget(
             inicio = json.optString("inicio").ifBlank { null },
             nomeOutra = json.optString("nomeOutra"),
             eventos = eventos,
+            casal = prefsWidgets(contexto).getString(CHAVE_CASAL, null)?.ifBlank { null },
+            slot = prefsWidgets(contexto).getString(CHAVE_SLOT, null)?.ifBlank { null },
             cartasNovas = json.optInt("cartasNovas", 0),
-            ultimaTexto = json.optString("ultimaTexto"),
-            ultimaDe = json.optString("ultimaDe")
+            ultimaTexto = ultimaTexto,
+            ultimaDe = ultimaDe,
+            cartasRecebidas = cartas.ifEmpty {
+                if (ultimaTexto.isNotBlank()) listOf(CartaRecebidaWidget(ultimaTexto, ultimaDe)) else emptyList()
+            }
         )
     } catch (erro: Exception) {
         vazio
@@ -168,30 +230,38 @@ fun montarDadosWidget(dados: DadosDoCasal, nomes: Map<String, String>): DadosWid
     val eu = dados.meuSlot ?: "pessoa1"
     val outra = if (eu == "pessoa1") "pessoa2" else "pessoa1"
     val hoje = LocalDate.now(FUSO_BELEM).toString()
-    val fontes: List<Pair<String, List<Item>>> = listOf(
-        "Viagem" to dados.viagens.toList(),
-        "Filme" to dados.filmes.toList(),
-        "Série" to dados.series.toList(),
-        "Jogo" to dados.jogos.toList(),
-        "Coisinha" to dados.coisinhas.toList(),
-        "Plano" to dados.planos.toList()
+    val fontes: List<Triple<String, String, List<Item>>> = listOf(
+        Triple("Viagem", "viagens", dados.viagens.toList()),
+        Triple("Filme", "filmes", dados.filmes.toList()),
+        Triple("Série", "series", dados.series.toList()),
+        Triple("Jogo", "jogos", dados.jogos.toList()),
+        Triple("Coisinha", "coisinhas", dados.coisinhas.toList()),
+        Triple("Plano", "planos", dados.planos.toList())
     )
-    val eventos = fontes.flatMap { (rotulo, itens) ->
+    val eventos = fontes.flatMap { (rotulo, colecao, itens) ->
         itens
             .filter { !it.feito && it.dataIso.isNotBlank() && it.dataIso >= hoje }
-            .map { EventoWidget(it.titulo, it.dataIso, rotulo) }
-    }.sortedBy { it.data }.take(8)
+            .map { EventoWidget(it.titulo, it.dataIso, rotulo, it.chave, colecao) }
+    }.sortedBy { it.data }.take(12)
     val recebidas = dados.cartinhas.filter { it.para == eu }
     val ultima = recebidas.firstOrNull()
+    val nomeOutraPessoa = nomes[outra].orEmpty()
+    val listaCartas = recebidas.take(6).map { carta ->
+        CartaRecebidaWidget(
+            texto = carta.texto,
+            de = if (carta.de == outra) nomeOutraPessoa else ""
+        )
+    }
     return DadosWidget(
         inicio = dados.dataNamoro,
-        nomeOutra = nomes[outra].orEmpty(),
+        nomeOutra = nomeOutraPessoa,
         eventos = eventos,
         casal = dados.casalId,
         slot = dados.meuSlot,
         cartasNovas = recebidas.size,
         ultimaTexto = ultima?.texto.orEmpty(),
-        ultimaDe = if (ultima != null && ultima.de == outra) nomes[outra].orEmpty() else ""
+        ultimaDe = if (ultima != null && ultima.de == outra) nomeOutraPessoa else "",
+        cartasRecebidas = listaCartas
     )
 }
 
@@ -231,6 +301,7 @@ class SetarUnidadeCallback : ActionCallback {
 class EnviarCartaCallback : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val texto = parameters[ChaveTextoCarta] ?: return
+        val origem = parameters[ChaveOrigemStatus] ?: "carta"
         val prefs = prefsWidgets(context)
         val casal = prefs.getString(CHAVE_CASAL, "").orEmpty()
         val slot = prefs.getString(CHAVE_SLOT, "").orEmpty()
@@ -242,15 +313,108 @@ class EnviarCartaCallback : ActionCallback {
                 FirebaseDatabase.getInstance().getReference("casais/$casal/cartinhas").push()
                     .setValue(mapOf("de" to slot, "para" to para, "texto" to texto, "em" to ServerValue.TIMESTAMP))
                     .await()
-                "Cartinha enviada"
+                if (origem == "contagem") "Carinho enviado ♥" else "Cartinha enviada ♥"
             } catch (erro: Exception) {
-                "Não foi possível enviar"
+                "Sem conexão agora"
             }
         }
-        prefs.edit()
-            .putString(CHAVE_STATUS, status)
-            .putLong(CHAVE_STATUS_EM, System.currentTimeMillis())
-            .apply()
+        val agora = System.currentTimeMillis()
+        if (origem == "contagem") {
+            prefs.edit()
+                .putString(CHAVE_STATUS_CONTAGEM, status)
+                .putLong(CHAVE_STATUS_CONTAGEM_EM, agora)
+                .apply()
+            ContagemWidget().updateAll(context)
+        } else {
+            prefs.edit()
+                .putString(CHAVE_STATUS, status)
+                .putLong(CHAVE_STATUS_EM, agora)
+                .apply()
+            CartaWidget().updateAll(context)
+        }
+    }
+}
+
+class ConcluirEventoCallback : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val chave = parameters[ChaveEventoId].orEmpty()
+        val colecao = parameters[ChaveEventoColecao].orEmpty()
+        val titulo = parameters[ChaveEventoTitulo].orEmpty()
+        val prefs = prefsWidgets(context)
+        val casal = prefs.getString(CHAVE_CASAL, "").orEmpty()
+
+        if (casal.isBlank() || chave.isBlank() || colecao.isBlank()) {
+            prefs.edit()
+                .putString(CHAVE_STATUS_EVENTO, "Abra o app uma vez para entrar")
+                .putLong(CHAVE_STATUS_EVENTO_EM, System.currentTimeMillis())
+                .apply()
+            EventosWidget().updateAll(context)
+            return
+        }
+
+        try {
+            val atualizacao: Map<String, Any> = when (colecao) {
+                "filmes" -> mapOf("watched" to true)
+                "series" -> mapOf("done" to true, "status" to "concluida")
+                "jogos" -> mapOf("done" to true, "status" to "zerado")
+                else -> mapOf("done" to true)
+            }
+            FirebaseDatabase.getInstance()
+                .getReference("casais/$casal/$colecao/$chave")
+                .updateChildren(atualizacao)
+                .await()
+
+            val atual = lerDadosWidget(context)
+            val restantes = atual.eventos.filterNot { it.chave == chave && it.colecao == colecao }
+            salvarDadosWidget(context, atual.copy(eventos = restantes))
+
+            val resumo = if (titulo.isNotBlank()) "Feito: $titulo" else "Marcado como feito ✓"
+            prefs.edit()
+                .putString(CHAVE_STATUS_EVENTO, resumo)
+                .putLong(CHAVE_STATUS_EVENTO_EM, System.currentTimeMillis())
+                .apply()
+        } catch (erro: Exception) {
+            prefs.edit()
+                .putString(CHAVE_STATUS_EVENTO, "Não foi possível salvar")
+                .putLong(CHAVE_STATUS_EVENTO_EM, System.currentTimeMillis())
+                .apply()
+        }
+        EventosWidget().updateAll(context)
+    }
+}
+
+class PaginarEventosCallback : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val delta = parameters[ChaveDelta] ?: return
+        val prefs = prefsWidgets(context)
+        val total = lerDadosWidget(context).eventos.size
+        if (total <= 1) return
+        val atual = prefs.getInt(CHAVE_PAGINA_EVENTOS, 0)
+        val proximo = (atual + delta).coerceIn(0, total - 1)
+        prefs.edit().putInt(CHAVE_PAGINA_EVENTOS, proximo).apply()
+        EventosWidget().updateAll(context)
+    }
+}
+
+class NavegarCartaCallback : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val delta = parameters[ChaveDelta] ?: return
+        val prefs = prefsWidgets(context)
+        val cartas = lerDadosWidget(context).cartasRecebidas
+        if (cartas.size <= 1) return
+        val atual = prefs.getInt(CHAVE_INDICE_CARTA, 0)
+        val proximo = (atual + delta + cartas.size) % cartas.size
+        prefs.edit().putInt(CHAVE_INDICE_CARTA, proximo).apply()
+        CartaWidget().updateAll(context)
+    }
+}
+
+class AlternarPaginaFrasesCallback : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val prefs = prefsWidgets(context)
+        val atual = prefs.getInt(CHAVE_PAGINA_FRASES, 0)
+        val proxima = (atual + 1) % PAGINAS_MENSAGENS_RAPIDAS.size
+        prefs.edit().putInt(CHAVE_PAGINA_FRASES, proxima).apply()
         CartaWidget().updateAll(context)
     }
 }
@@ -443,16 +607,28 @@ private fun Tela.botoesUnidade(y: Float, altura: Float, unidadeAtual: String, la
     }
 }
 
-private fun desenharContagem(tela: Tela, dados: DadosWidget, unidade: String, contagem: Contagem?) {
+private fun statusRecenteChave(prefs: android.content.SharedPreferences, chaveTexto: String, chaveEm: String, janelaMs: Long = 10 * 60_000L): String? {
+    val status = prefs.getString(chaveTexto, null) ?: return null
+    val em = prefs.getLong(chaveEm, 0L)
+    return if (System.currentTimeMillis() - em < janelaMs) status else null
+}
+
+private fun desenharContagem(tela: Tela, dados: DadosWidget, unidade: String, contagem: Contagem?, statusPing: String?) {
     val largura = tela.largura
     val altura = tela.altura
     val par = contagem?.let { numeroDaUnidade(it, unidade) }
     val numero = par?.let { formatarMilhar(it.first.toInt()) } ?: "--"
     val palavra = par?.second ?: "dias"
-    val desde = dados.inicio?.let { "desde ${dataBr(it)}" } ?: "Defina a data do namoro no site"
+    val desde = statusPing ?: (dados.inicio?.let { "desde ${dataBr(it)}" } ?: "Defina a data do namoro no site")
     val composicao = contagem?.composicao.orEmpty()
     val abrir = abrirApp(tela.contexto)
     val raioFundo = min(24f, min(largura, altura) * 0.22f)
+    val acaoPing = actionRunCallback<EnviarCartaCallback>(
+        actionParametersOf(
+            ChaveTextoCarta to "♥ Pensando em você",
+            ChaveOrigemStatus to "contagem"
+        )
+    )
 
     tela.fundoDegrade(raioFundo, FundoContagemTopo, FundoContagemBase)
     tela.moldura(BordaOuroPastel)
@@ -464,9 +640,23 @@ private fun desenharContagem(tela: Tela, dados: DadosWidget, unidade: String, co
             val btnY = altura - pad - btnH
             val areaTopo = pad + 4f
             val areaBase = btnY - 12f
-            val maxTexto = largura - pad * 2f - 8f
+            val maxTexto = largura - pad * 2f - 48f
 
-            val pDesde = tela.fonte(OcrePastel, R.font.cormorant_garamond_italic, (altura * 0.066f).coerceIn(13.5f, 17.5f))
+            // Botão rápido de carinho (♥) no canto superior direito sem abrir o app
+            val heartTam = 26f
+            val heartX = largura - pad - heartTam
+            val heartY = areaTopo - 2f
+            tela.sombraSuave(heartX, heartY, heartTam, heartTam, heartTam / 2f, alpha = 0.08f)
+            tela.retangulo(heartX, heartY, heartTam, heartTam, heartTam / 2f, BotaoOuroPastel)
+            tela.retangulo(heartX, heartY, heartTam, heartTam, heartTam / 2f, BordaOuroPastel.copy(alpha = 0.8f), contorno = true, espessura = 0.7f)
+            val pHeart = tela.fonte(OcrePastel, R.font.montserrat_semibold, 12f)
+            tela.texto("♥", heartX + heartTam / 2f, tela.baselineCentro(heartY + heartTam / 2f, pHeart), pHeart, heartTam, Paint.Align.CENTER)
+
+            val pDesde = tela.fonte(
+                if (statusPing != null) BotaoAtivoPastel else OcrePastel,
+                if (statusPing != null) R.font.montserrat_semibold else R.font.cormorant_garamond_italic,
+                if (statusPing != null) 11f else (altura * 0.066f).coerceIn(13.5f, 17.5f)
+            )
             val yDesde = areaTopo + (-pDesde.ascent())
             tela.texto(desde, largura / 2f, yDesde, pDesde, maxTexto, Paint.Align.CENTER)
 
@@ -477,7 +667,7 @@ private fun desenharContagem(tela: Tela, dados: DadosWidget, unidade: String, co
             val pComp = tela.fonte(TintaSuavePastel, R.font.montserrat_regular, (altura * 0.042f).coerceIn(9.5f, 11.5f))
             val yComp = areaBase - pComp.descent()
             if (temComp) {
-                tela.texto(composicao, largura / 2f, yComp, pComp, maxTexto, Paint.Align.CENTER)
+                tela.texto(composicao, largura / 2f, yComp, pComp, largura - pad * 2f - 8f, Paint.Align.CENTER)
             }
 
             val meioTopo = yOrnamento + 6f
@@ -490,7 +680,7 @@ private fun desenharContagem(tela: Tela, dados: DadosWidget, unidade: String, co
                 R.font.cormorant_garamond_semibold,
                 (meioAltura * 0.66f).coerceIn(40f, 94f),
                 26f,
-                maxTexto
+                largura - pad * 2f - 8f
             )
             val pPal = tela.fonte(TintaPastel, R.font.cormorant_garamond_regular, (meioAltura * 0.19f).coerceIn(15f, 23f))
             val altNum = -pNum.ascent()
@@ -501,10 +691,12 @@ private fun desenharContagem(tela: Tela, dados: DadosWidget, unidade: String, co
             val yNum = inicioBloco + altNum
             val yPal = yNum + gap + (-pPal.ascent())
 
-            tela.texto(numero, largura / 2f, yNum, pNum, maxTexto, Paint.Align.CENTER)
-            tela.texto("$palavra juntos", largura / 2f, yPal, pPal, maxTexto, Paint.Align.CENTER)
+            tela.texto(numero, largura / 2f, yNum, pNum, largura - pad * 2f - 8f, Paint.Align.CENTER)
+            tela.texto("$palavra juntos", largura / 2f, yPal, pPal, largura - pad * 2f - 8f, Paint.Align.CENTER)
 
-            tela.zona(0f, 0f, largura, btnY - 4f, abrir)
+            tela.zona(0f, 0f, heartX - 4f, btnY - 4f, abrir)
+            tela.zona(heartX - 4f, 0f, heartTam + pad + 4f, heartY + heartTam + 8f, acaoPing)
+            tela.zona(0f, heartY + heartTam + 8f, largura, btnY - heartY - heartTam - 12f, abrir)
             tela.botoesUnidade(btnY, btnH, unidade, largura - pad * 2f, pad)
         }
 
@@ -520,7 +712,9 @@ private fun desenharContagem(tela: Tela, dados: DadosWidget, unidade: String, co
             val larguraUtil = largura - pad * 2f - gapCol
             val colEsq = larguraUtil * 0.42f
             val xDir = pad + colEsq + gapCol
-            val colDir = largura - xDir - pad
+            val heartTam = 24f
+            val heartX = largura - pad - heartTam
+            val colDir = max(20f, heartX - xDir - 6f)
 
             val pNum = tela.fonteAjustada(
                 numero,
@@ -534,21 +728,33 @@ private fun desenharContagem(tela: Tela, dados: DadosWidget, unidade: String, co
 
             tela.retangulo(pad + colEsq + gapCol / 2f, areaTopo + 4f, 0.8f, areaH - 8f, 0f, BordaOuroPastel.copy(alpha = 0.55f))
 
+            // Botão rápido de carinho (♥) à direita
+            tela.sombraSuave(heartX, areaTopo, heartTam, heartTam, heartTam / 2f, alpha = 0.08f)
+            tela.retangulo(heartX, areaTopo, heartTam, heartTam, heartTam / 2f, BotaoOuroPastel)
+            tela.retangulo(heartX, areaTopo, heartTam, heartTam, heartTam / 2f, BordaOuroPastel.copy(alpha = 0.8f), contorno = true, espessura = 0.7f)
+            val pHeart = tela.fonte(OcrePastel, R.font.montserrat_semibold, 11.5f)
+            tela.texto("♥", heartX + heartTam / 2f, tela.baselineCentro(areaTopo + heartTam / 2f, pHeart), pHeart, heartTam, Paint.Align.CENTER)
+
             val mostrarComp = composicao.isNotBlank() && areaH >= 44f
             val pPal = tela.fonte(TintaPastel, R.font.cormorant_garamond_regular, (areaH * 0.34f).coerceIn(14f, 21f))
-            val pDesde = tela.fonte(OcrePastel, R.font.cormorant_garamond_italic, (areaH * 0.24f).coerceIn(11f, 14f))
+            val pDesde = tela.fonte(
+                if (statusPing != null) BotaoAtivoPastel else OcrePastel,
+                if (statusPing != null) R.font.montserrat_semibold else R.font.cormorant_garamond_italic,
+                if (statusPing != null) 10f else (areaH * 0.24f).coerceIn(11f, 14f)
+            )
 
             if (mostrarComp) {
                 val pComp = tela.fonte(TintaSuavePastel, R.font.montserrat_regular, (areaH * 0.18f).coerceIn(9f, 10.5f))
                 tela.texto("$palavra juntos", xDir, tela.baselineCentro(areaTopo + areaH * 0.23f, pPal), pPal, colDir)
-                tela.texto(desde, xDir, tela.baselineCentro(areaTopo + areaH * 0.56f, pDesde), pDesde, colDir)
-                tela.texto(composicao, xDir, tela.baselineCentro(areaTopo + areaH * 0.85f, pComp), pComp, colDir)
+                tela.texto(desde, xDir, tela.baselineCentro(areaTopo + areaH * 0.56f, pDesde), pDesde, colDir + heartTam)
+                tela.texto(composicao, xDir, tela.baselineCentro(areaTopo + areaH * 0.85f, pComp), pComp, colDir + heartTam)
             } else {
                 tela.texto("$palavra juntos", xDir, tela.baselineCentro(areaTopo + areaH * 0.34f, pPal), pPal, colDir)
-                tela.texto(desde, xDir, tela.baselineCentro(areaTopo + areaH * 0.72f, pDesde), pDesde, colDir)
+                tela.texto(desde, xDir, tela.baselineCentro(areaTopo + areaH * 0.72f, pDesde), pDesde, colDir + heartTam)
             }
 
-            tela.zona(0f, 0f, largura, btnY - 4f, abrir)
+            tela.zona(0f, 0f, heartX - 4f, btnY - 4f, abrir)
+            tela.zona(heartX - 4f, 0f, heartTam + pad + 4f, areaTopo + heartTam + 6f, acaoPing)
             tela.botoesUnidade(btnY, btnH, unidade, largura - pad * 2f, pad)
         }
 
@@ -556,6 +762,16 @@ private fun desenharContagem(tela: Tela, dados: DadosWidget, unidade: String, co
             val pad = 14f
             val menor = min(largura, altura)
             val maxTexto = largura - pad * 2f
+
+            // Botão rápido ♥ no canto superior direito mesmo no tamanho pequeno
+            val heartTam = 22f
+            val heartX = largura - pad - heartTam + 2f
+            val heartY = pad - 2f
+            tela.retangulo(heartX, heartY, heartTam, heartTam, heartTam / 2f, BotaoOuroPastel)
+            tela.retangulo(heartX, heartY, heartTam, heartTam, heartTam / 2f, BordaOuroPastel.copy(alpha = 0.8f), contorno = true, espessura = 0.7f)
+            val pHeart = tela.fonte(OcrePastel, R.font.montserrat_semibold, 10.5f)
+            tela.texto("♥", heartX + heartTam / 2f, tela.baselineCentro(heartY + heartTam / 2f, pHeart), pHeart, heartTam, Paint.Align.CENTER)
+
             val pNum = tela.fonteAjustada(
                 numero,
                 TintaPastel,
@@ -564,19 +780,23 @@ private fun desenharContagem(tela: Tela, dados: DadosWidget, unidade: String, co
                 18f,
                 maxTexto
             )
-            val pPal = tela.fonte(TintaPastel, R.font.cormorant_garamond_regular, (menor * 0.15f).coerceIn(12.5f, 20f))
+            val pPal = tela.fonte(
+                if (statusPing != null) OcrePastel else TintaPastel,
+                if (statusPing != null) R.font.montserrat_semibold else R.font.cormorant_garamond_regular,
+                if (statusPing != null) 9.5f else (menor * 0.15f).coerceIn(12.5f, 20f)
+            )
             val altNum = -pNum.ascent()
             val altPal = -pPal.ascent() + pPal.descent()
             val gap = (menor * 0.04f).coerceIn(3f, 7f)
-            val inicioY = (altura - (altNum + gap + altPal) - 10f) / 2f
+            val inicioY = (altura - (altNum + gap + altPal) - 10f) / 2f + 4f
             val yNum = inicioY + altNum
             val yPal = yNum + gap + (-pPal.ascent())
 
             tela.texto(numero, largura / 2f, yNum, pNum, maxTexto, Paint.Align.CENTER)
-            tela.texto(palavra, largura / 2f, yPal, pPal, maxTexto, Paint.Align.CENTER)
+            tela.texto(statusPing ?: palavra, largura / 2f, yPal, pPal, maxTexto, Paint.Align.CENTER)
 
             val idxUnidade = UNIDADES.indexOfFirst { it.first == unidade }.coerceAtLeast(0)
-            val yDots = altura - 15f
+            val yDots = altura - 14f
             val espacoDots = 8f
             val xStart = largura / 2f - espacoDots
             UNIDADES.indices.forEach { idx ->
@@ -589,7 +809,8 @@ private fun desenharContagem(tela: Tela, dados: DadosWidget, unidade: String, co
                 )
             }
 
-            tela.zona(0f, 0f, largura, altura, actionRunCallback<CiclarUnidadeCallback>())
+            tela.zona(heartX - 4f, 0f, heartTam + pad + 4f, heartY + heartTam + 6f, acaoPing)
+            tela.zona(0f, heartY + heartTam + 6f, largura, altura - heartY - heartTam - 6f, actionRunCallback<CiclarUnidadeCallback>())
         }
     }
 }
@@ -600,14 +821,15 @@ class ContagemWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val dados = lerDadosWidget(context)
         val unidade = lerUnidadeWidget(context)
+        val statusPing = statusRecenteChave(prefsWidgets(context), CHAVE_STATUS_CONTAGEM, CHAVE_STATUS_CONTAGEM_EM, 4 * 60_000L)
         val contagem = dados.inicio?.let { calcularContagem(it, LocalDateTime.now(FUSO_BELEM)) }
         provideContent {
             val tamanho = LocalSize.current
             val larguraDp = if (tamanho.width.value > 1f) tamanho.width.value else 250f
             val alturaDp = if (tamanho.height.value > 1f) tamanho.height.value else 110f
-            val tela = remember(larguraDp, alturaDp, unidade, dados.inicio, contagem?.dias, contagem?.composicao) {
+            val tela = remember(larguraDp, alturaDp, unidade, statusPing, dados.inicio, contagem?.dias, contagem?.composicao) {
                 Tela(context, larguraDp, alturaDp).also {
-                    desenharContagem(it, dados, unidade, contagem)
+                    desenharContagem(it, dados, unidade, contagem, statusPing)
                 }
             }
             TelaWidget(tela, "Contagem de dias")
@@ -619,7 +841,7 @@ class ContagemWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = ContagemWidget()
 }
 
-private fun desenharEventos(tela: Tela, eventos: List<EventoWidget>) {
+private fun desenharEventos(tela: Tela, eventos: List<EventoWidget>, paginaOffset: Int, statusEvento: String?) {
     val largura = tela.largura
     val altura = tela.altura
     val raioFundo = min(24f, min(largura, altura) * 0.22f)
@@ -631,46 +853,76 @@ private fun desenharEventos(tela: Tela, eventos: List<EventoWidget>) {
     val tamTitulo = if (largura < 200f || altura < 160f) 18f else 22f
     val pTitulo = tela.fonte(TintaPastel, R.font.cormorant_garamond_semibold, tamTitulo)
     val tituloY = pad + (-pTitulo.ascent()) + 2f
-    tela.texto("Próximas datas", pad + 4f, tituloY, pTitulo, largura - pad * 2f - 48f)
-
-    if (eventos.isNotEmpty()) {
-        val badgeW = 28f
-        val badgeH = 18f
-        val badgeX = largura - pad - 4f - badgeW
-        val badgeY = tituloY + pTitulo.ascent() + (pTitulo.descent() - pTitulo.ascent() - badgeH) / 2f
-        tela.retangulo(badgeX, badgeY, badgeW, badgeH, badgeH / 2f, TrilhoSegmentoPastel)
-        val pBadge = tela.fonte(TintaPastel, R.font.montserrat_semibold, 9.5f)
-        tela.texto("${eventos.size}", badgeX + badgeW / 2f, tela.baselineCentro(badgeY + badgeH / 2f, pBadge), pBadge, badgeW - 4f, Paint.Align.CENTER)
-    }
 
     val divisorY = tituloY + pTitulo.descent() + 7f
-    tela.retangulo(pad + 4f, divisorY, largura - pad * 2f - 8f, 0.8f, 0f, BordaOuroPastel.copy(alpha = 0.85f))
-
     val topoLista = divisorY + 10f
     val linhaAltura = if (altura < 200f) 44f else 50f
     val seloH = linhaAltura - 8f
     val seloW = if (largura < 200f) 38f else 44f
 
-    val utilSemRodape = max(linhaAltura, altura - topoLista - pad)
-    val maxSemRodape = max(1, (utilSemRodape / linhaAltura).toInt())
-    val linhas = if (eventos.size > maxSemRodape) {
-        val utilComRodape = max(linhaAltura, altura - topoLista - pad - 16f)
-        max(1, (utilComRodape / linhaAltura).toInt())
+    val temRodapeStatus = statusEvento != null
+    val utilLista = max(linhaAltura, altura - topoLista - pad - (if (temRodapeStatus) 16f else 0f))
+    val linhasPorPagina = max(1, (utilLista / linhaAltura).toInt())
+
+    val maxInicio = max(0, eventos.size - linhasPorPagina)
+    val inicio = paginaOffset.coerceIn(0, maxInicio)
+    val temAnterior = inicio > 0
+    val temProximo = inicio + linhasPorPagina < eventos.size
+    val mostrarPaginacao = eventos.size > linhasPorPagina
+
+    val espacoControles = if (mostrarPaginacao) 78f else if (eventos.isNotEmpty()) 36f else 8f
+    tela.texto("Próximas datas", pad + 4f, tituloY, pTitulo, largura - pad * 2f - espacoControles)
+
+    // Controles de paginação ‹ e › no cabeçalho para navegar sem abrir o app
+    if (mostrarPaginacao) {
+        val navTam = 22f
+        val navY = tituloY + pTitulo.ascent() + (pTitulo.descent() - pTitulo.ascent() - navTam) / 2f
+        val nextX = largura - pad - 4f - navTam
+        val prevX = nextX - 6f - navTam
+        val pNav = tela.fonte(TintaPastel, R.font.montserrat_semibold, 11f)
+
+        tela.retangulo(prevX, navY, navTam, navTam, navTam / 2f, if (temAnterior) BotaoOuroPastel else TrilhoSegmentoPastel.copy(alpha = 0.4f))
+        tela.texto("‹", prevX + navTam / 2f, tela.baselineCentro(navY + navTam / 2f, pNav), pNav, navTam, Paint.Align.CENTER)
+        if (temAnterior) {
+            tela.zona(prevX - 3f, navY - 4f, navTam + 6f, navTam + 8f, actionRunCallback<PaginarEventosCallback>(actionParametersOf(ChaveDelta to -linhasPorPagina)))
+        }
+
+        tela.retangulo(nextX, navY, navTam, navTam, navTam / 2f, if (temProximo) BotaoOuroPastel else TrilhoSegmentoPastel.copy(alpha = 0.4f))
+        tela.texto("›", nextX + navTam / 2f, tela.baselineCentro(navY + navTam / 2f, pNav), pNav, navTam, Paint.Align.CENTER)
+        if (temProximo) {
+            tela.zona(nextX - 3f, navY - 4f, navTam + 6f, navTam + 8f, actionRunCallback<PaginarEventosCallback>(actionParametersOf(ChaveDelta to linhasPorPagina)))
+        }
+
+        tela.zona(0f, 0f, prevX - 6f, divisorY, abrirApp(tela.contexto))
     } else {
-        maxSemRodape
+        if (eventos.isNotEmpty()) {
+            val badgeW = 28f
+            val badgeH = 18f
+            val badgeX = largura - pad - 4f - badgeW
+            val badgeY = tituloY + pTitulo.ascent() + (pTitulo.descent() - pTitulo.ascent() - badgeH) / 2f
+            tela.retangulo(badgeX, badgeY, badgeW, badgeH, badgeH / 2f, TrilhoSegmentoPastel)
+            val pBadge = tela.fonte(TintaPastel, R.font.montserrat_semibold, 9.5f)
+            tela.texto("${eventos.size}", badgeX + badgeW / 2f, tela.baselineCentro(badgeY + badgeH / 2f, pBadge), pBadge, badgeW - 4f, Paint.Align.CENTER)
+        }
+        tela.zona(0f, 0f, largura, divisorY, abrirApp(tela.contexto))
     }
 
-    if (eventos.isEmpty()) {
+    tela.retangulo(pad + 4f, divisorY, largura - pad * 2f - 8f, 0.8f, 0f, BordaOuroPastel.copy(alpha = 0.85f))
+
+    val visiveis = eventos.drop(inicio).take(linhasPorPagina)
+    if (visiveis.isEmpty()) {
         val pVazio = tela.fonte(TintaSuavePastel, R.font.cormorant_garamond_italic, 15.5f)
-        tela.texto("Nenhuma data marcada ainda.", pad + 4f, topoLista + 22f, pVazio, largura - pad * 2f - 8f)
+        tela.texto("Tudo em dia por aqui.", pad + 4f, topoLista + 22f, pVazio, largura - pad * 2f - 8f)
+        tela.zona(0f, divisorY, largura, altura - divisorY, abrirApp(tela.contexto))
     }
 
     val hoje = LocalDate.now(FUSO_BELEM)
-    eventos.take(linhas).forEachIndexed { i, evento ->
+    visiveis.forEachIndexed { i, evento ->
         val base = topoLista + i * linhaAltura
         val data = runCatching { LocalDate.parse(evento.data) }.getOrNull()
         val diasFaltando = data?.let { ChronoUnit.DAYS.between(hoje, it) }
         val urgente = diasFaltando != null && diasFaltando in 0L..1L
+        val podeConcluir = evento.chave.isNotBlank() && evento.colecao.isNotBlank()
 
         tela.sombraSuave(pad + 2f, base, seloW, seloH, 9f, alpha = 0.12f)
         tela.retangulo(pad + 2f, base, seloW, seloH, 9f, BotaoAtivoPastel)
@@ -694,8 +946,12 @@ private fun desenharEventos(tela: Tela, eventos: List<EventoWidget>) {
             Paint.Align.CENTER
         )
 
+        val checkTam = if (podeConcluir) 24f else 0f
+        val checkX = largura - pad - checkTam
+        val checkY = base + (seloH - checkTam) / 2f
+
         val x = pad + 2f + seloW + 10f
-        val maxLarg = max(10f, largura - x - pad)
+        val maxLarg = max(10f, (if (podeConcluir) checkX - 8f else largura - pad) - x)
         val pNome = tela.fonte(TintaPastel, R.font.montserrat_semibold, 12.5f)
         val pTipo = tela.fonte(OcrePastel, R.font.montserrat_semibold, 9.5f)
         val pFalta = tela.fonte(if (urgente) TintaPastel else TintaSuavePastel, if (urgente) R.font.montserrat_semibold else R.font.montserrat_regular, 9.5f)
@@ -719,23 +975,47 @@ private fun desenharEventos(tela: Tela, eventos: List<EventoWidget>) {
             }
         }
 
-        if (i < linhas - 1 && i < eventos.size - 1) {
+        // Botão de concluir diretamente no widget
+        if (podeConcluir) {
+            tela.retangulo(checkX, checkY, checkTam, checkTam, 7f, BotaoOuroPastel.copy(alpha = 0.75f))
+            tela.retangulo(checkX, checkY, checkTam, checkTam, 7f, BordaOuroPastel, contorno = true, espessura = 0.8f)
+            val pCheck = tela.fonte(OcrePastel, R.font.montserrat_semibold, 11.5f)
+            tela.texto("✓", checkX + checkTam / 2f, tela.baselineCentro(checkY + checkTam / 2f, pCheck), pCheck, checkTam, Paint.Align.CENTER)
+
+            tela.zona(0f, base, checkX - 4f, linhaAltura, abrirApp(tela.contexto))
+            tela.zona(
+                checkX - 4f,
+                base,
+                checkTam + pad + 4f,
+                linhaAltura,
+                actionRunCallback<ConcluirEventoCallback>(
+                    actionParametersOf(
+                        ChaveEventoId to evento.chave,
+                        ChaveEventoColecao to evento.colecao,
+                        ChaveEventoTitulo to evento.titulo
+                    )
+                )
+            )
+        } else {
+            tela.zona(0f, base, largura, linhaAltura, abrirApp(tela.contexto))
+        }
+
+        if (i < visiveis.size - 1) {
             tela.retangulo(x, base + linhaAltura - 4f, maxLarg, 0.6f, 0f, BordaOuroPastel.copy(alpha = 0.65f))
         }
     }
 
-    if (eventos.size > linhas) {
-        val pMais = tela.fonte(OcrePastel, R.font.montserrat_semibold, 9.5f)
+    if (statusEvento != null) {
+        val pStatus = tela.fonte(BotaoAtivoPastel, R.font.montserrat_semibold, 9.5f)
         tela.texto(
-            "+${eventos.size - linhas} no app",
-            largura - pad - 4f,
+            statusEvento,
+            largura / 2f,
             altura - pad + 2f,
-            pMais,
-            120f,
-            Paint.Align.RIGHT
+            pStatus,
+            largura - pad * 2f,
+            Paint.Align.CENTER
         )
     }
-    tela.zona(0f, 0f, largura, altura, abrirApp(tela.contexto))
 }
 
 private val MESES_CURTOS = listOf("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
@@ -755,13 +1035,16 @@ class EventosWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val prefs = prefsWidgets(context)
         val eventos = lerDadosWidget(context).eventos
+        val pagina = prefs.getInt(CHAVE_PAGINA_EVENTOS, 0)
+        val statusEvento = statusRecenteChave(prefs, CHAVE_STATUS_EVENTO, CHAVE_STATUS_EVENTO_EM, 4 * 60_000L)
         provideContent {
             val tamanho = LocalSize.current
             val larguraDp = if (tamanho.width.value > 1f) tamanho.width.value else 250f
             val alturaDp = if (tamanho.height.value > 1f) tamanho.height.value else 180f
-            val tela = remember(larguraDp, alturaDp, eventos) {
-                Tela(context, larguraDp, alturaDp).also { desenharEventos(it, eventos) }
+            val tela = remember(larguraDp, alturaDp, eventos, pagina, statusEvento) {
+                Tela(context, larguraDp, alturaDp).also { desenharEventos(it, eventos, pagina, statusEvento) }
             }
             TelaWidget(tela, "Próximas datas do casal")
         }
@@ -772,13 +1055,13 @@ class EventosWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = EventosWidget()
 }
 
-private fun statusRecente(prefs: android.content.SharedPreferences): String? {
-    val status = prefs.getString(CHAVE_STATUS, null) ?: return null
-    val em = prefs.getLong(CHAVE_STATUS_EM, 0L)
-    return if (System.currentTimeMillis() - em < 15 * 60_000L) status else null
-}
-
-private fun desenharCartinha(tela: Tela, dados: DadosWidget, status: String?) {
+private fun desenharCartinha(
+    tela: Tela,
+    dados: DadosWidget,
+    status: String?,
+    indiceCarta: Int,
+    paginaFrases: Int
+) {
     val largura = tela.largura
     val altura = tela.altura
     val abrirCarta = abrirApp(tela.contexto, carta = true)
@@ -793,12 +1076,19 @@ private fun desenharCartinha(tela: Tela, dados: DadosWidget, status: String?) {
     val media = largura >= 200f && !grande
     val pequena = !grande && !media
 
+    val cartas = dados.cartasRecebidas
+    val idxSeguro = if (cartas.isNotEmpty()) indiceCarta.coerceIn(0, cartas.size - 1) else 0
+    val cartaAtual = cartas.getOrNull(idxSeguro)
+    val frasesAtuais = PAGINAS_MENSAGENS_RAPIDAS[paginaFrases.coerceIn(0, PAGINAS_MENSAGENS_RAPIDAS.lastIndex)]
+
     val iconeTam = if (pequena) (min(largura, altura) * 0.16f).coerceIn(15f, 20f) else 22f
     tela.icone(R.drawable.ic_envelope_creme, pad, pad, iconeTam, iconeTam, TintaPastel)
 
-    val badgeLarg = if (!pequena && dados.cartasNovas > 0) 32f else 0f
+    val temTrocaFrases = !pequena
+    val badgeLarg = if (!pequena && dados.cartasNovas > 0) 30f else 0f
+    val trocaLarg = if (temTrocaFrases) 28f else 0f
     val xTitulo = pad + iconeTam + if (pequena) 6f else 8f
-    val maxTitulo = max(20f, largura - xTitulo - pad - badgeLarg)
+    val maxTitulo = max(20f, largura - xTitulo - pad - badgeLarg - trocaLarg)
     val pTitulo = tela.fonteAjustada(
         "Cartinha",
         TintaPastel,
@@ -809,24 +1099,39 @@ private fun desenharCartinha(tela: Tela, dados: DadosWidget, status: String?) {
     )
     tela.texto("Cartinha", xTitulo, tela.baselineCentro(pad + iconeTam / 2f, pTitulo), pTitulo, maxTitulo)
 
+    var cursorDireita = largura - pad
     if (!pequena && dados.cartasNovas > 0) {
         val bW = 24f
         val bH = 18f
-        val bX = largura - pad - bW
+        cursorDireita -= bW
         val bY = pad + (iconeTam - bH) / 2f
-        tela.retangulo(bX, bY, bW, bH, bH / 2f, BotaoAtivoPastel)
+        tela.retangulo(cursorDireita, bY, bW, bH, bH / 2f, BotaoAtivoPastel)
         val pB = tela.fonte(CremePastel, R.font.montserrat_semibold, 9.5f)
-        tela.texto("${dados.cartasNovas}", bX + bW / 2f, tela.baselineCentro(bY + bH / 2f, pB), pB, bW - 4f, Paint.Align.CENTER)
+        tela.texto("${dados.cartasNovas}", cursorDireita + bW / 2f, tela.baselineCentro(bY + bH / 2f, pB), pB, bW - 4f, Paint.Align.CENTER)
+        cursorDireita -= 6f
+    }
+
+    // Botão para alternar entre as 2 páginas de mensagens rápidas sem abrir o app
+    if (temTrocaFrases) {
+        val pW = 24f
+        val pH = 18f
+        cursorDireita -= pW
+        val pY = pad + (iconeTam - pH) / 2f
+        tela.retangulo(cursorDireita, pY, pW, pH, pH / 2f, BotaoOuroPastel)
+        tela.retangulo(cursorDireita, pY, pW, pH, pH / 2f, BordaOuroPastel.copy(alpha = 0.8f), contorno = true, espessura = 0.7f)
+        val pPag = tela.fonte(OcrePastel, R.font.montserrat_semibold, 9f)
+        tela.texto("${paginaFrases + 1}/2", cursorDireita + pW / 2f, tela.baselineCentro(pY + pH / 2f, pPag), pPag, pW - 2f, Paint.Align.CENTER)
+        tela.zona(cursorDireita - 4f, pad - 4f, pW + 8f, iconeTam + 8f, actionRunCallback<AlternarPaginaFrasesCallback>())
     }
 
     val linha = when {
         status != null -> status
         pequena && dados.cartasNovas == 1 -> "1 nova"
         pequena && dados.cartasNovas > 1 -> "${dados.cartasNovas} novas"
-        pequena -> "Sem novas"
-        dados.cartasNovas == 1 -> "1 cartinha nova para você"
-        dados.cartasNovas > 1 -> "${dados.cartasNovas} cartinhas novas para você"
-        else -> "Toque para enviar um carinho"
+        pequena -> "Toque rápido"
+        dados.cartasNovas == 1 -> "1 cartinha para ler"
+        dados.cartasNovas > 1 -> "${dados.cartasNovas} cartinhas (${idxSeguro + 1}/${cartas.size})"
+        else -> "Envie um carinho em 1 toque"
     }
     val corLinha = if (status != null) OcrePastel else TintaSuavePastel
     val pLinha = tela.fonte(corLinha, R.font.montserrat_semibold, if (pequena) 9.5f else 10f)
@@ -843,27 +1148,76 @@ private fun desenharCartinha(tela: Tela, dados: DadosWidget, status: String?) {
             val topoGrid = btnEscreverY - gap - gridH
 
             val cardY = yLinha + 10f
-            val cardH = (topoGrid - 9f - cardY).coerceAtLeast(40f)
+            val cardH = (topoGrid - 9f - cardY).coerceAtLeast(42f)
+            val cardW = largura - pad * 2f
 
-            tela.sombraSuave(pad, cardY, largura - pad * 2f, cardH, 12f, alpha = 0.08f)
-            tela.retangulo(pad, cardY, largura - pad * 2f, cardH, 12f, CartaoCartaPastel)
-            tela.retangulo(pad, cardY, largura - pad * 2f, cardH, 12f, BordaAzulPastel.copy(alpha = 0.65f), contorno = true, espessura = 0.7f)
+            tela.sombraSuave(pad, cardY, cardW, cardH, 12f, alpha = 0.08f)
+            tela.retangulo(pad, cardY, cardW, cardH, 12f, CartaoCartaPastel)
+            tela.retangulo(pad, cardY, cardW, cardH, 12f, BordaAzulPastel.copy(alpha = 0.65f), contorno = true, espessura = 0.7f)
             tela.retangulo(pad + 6f, cardY + 8f, 2.5f, cardH - 16f, 2f, BordaOuroPastel)
 
-            val autor = if (dados.ultimaDe.isNotBlank()) "de ${dados.ultimaDe}" else "Último recado"
+            val autorTexto = when {
+                cartaAtual != null && cartaAtual.de.isNotBlank() -> "de ${cartaAtual.de}"
+                cartaAtual != null -> "cartinha recebida"
+                else -> "Último recado"
+            }
             val pAutor = tela.fonte(OcrePastel, R.font.montserrat_semibold, 9f)
-            val trecho = dados.ultimaTexto.ifBlank { "Nenhum recado por aqui ainda." }
+            val trecho = cartaAtual?.texto ?: dados.ultimaTexto.ifBlank { "Nenhum recado por aqui ainda." }
             val pTrecho = tela.fonte(TintaPastel, R.font.cormorant_garamond_italic, (cardH * 0.28f).coerceIn(14.5f, 17.5f))
-            val maxCard = largura - pad * 2f - 24f
 
-            tela.texto(autor, pad + 14f, tela.baselineCentro(cardY + cardH * 0.30f, pAutor), pAutor, maxCard)
-            tela.texto(trecho, pad + 14f, tela.baselineCentro(cardY + cardH * 0.69f, pTrecho), pTrecho, maxCard)
+            // Controles dentro do cartão para folhear cartas e reagir com ♥ sem abrir o app
+            val acaoLarg = if (cartaAtual != null) (if (cartas.size > 1) 82f else 44f) else 0f
+            val maxCard = max(20f, cardW - 24f - acaoLarg)
 
-            tela.zona(0f, 0f, largura, topoGrid - 4f, abrirTudo)
+            tela.texto(autorTexto, pad + 14f, tela.baselineCentro(cardY + cardH * 0.29f, pAutor), pAutor, maxCard)
+            tela.texto(trecho, pad + 14f, tela.baselineCentro(cardY + cardH * 0.69f, pTrecho), pTrecho, cardW - 24f)
+
+            if (cartaAtual != null) {
+                var cx = pad + cardW - 8f
+                val btnCardH = 20f
+                val btnCardY = cardY + 6f
+
+                // Botão ♥ Curtir / Responder
+                val curtirW = 36f
+                cx -= curtirW
+                tela.retangulo(cx, btnCardY, curtirW, btnCardH, btnCardH / 2f, BotaoOuroPastel)
+                val pCurtir = tela.fonte(OcrePastel, R.font.montserrat_semibold, 9.5f)
+                tela.texto("♥", cx + curtirW / 2f, tela.baselineCentro(btnCardY + btnCardH / 2f, pCurtir), pCurtir, curtirW, Paint.Align.CENTER)
+                tela.zona(
+                    cx - 2f,
+                    cardY,
+                    curtirW + 10f,
+                    cardH,
+                    actionRunCallback<EnviarCartaCallback>(
+                        actionParametersOf(
+                            ChaveTextoCarta to "♥ Li e amei sua cartinha",
+                            ChaveOrigemStatus to "carta"
+                        )
+                    )
+                )
+
+                if (cartas.size > 1) {
+                    val navW = 19f
+                    cx -= (navW + 4f)
+                    tela.retangulo(cx, btnCardY, navW, btnCardH, btnCardH / 2f, BotaoAzulSuavePastel.copy(alpha = 0.7f))
+                    val pNav = tela.fonte(TintaPastel, R.font.montserrat_semibold, 10f)
+                    tela.texto("›", cx + navW / 2f, tela.baselineCentro(btnCardY + btnCardH / 2f, pNav), pNav, navW, Paint.Align.CENTER)
+                    tela.zona(cx - 2f, cardY, navW + 4f, cardH, actionRunCallback<NavegarCartaCallback>(actionParametersOf(ChaveDelta to 1)))
+
+                    cx -= (navW + 3f)
+                    tela.retangulo(cx, btnCardY, navW, btnCardH, btnCardH / 2f, BotaoAzulSuavePastel.copy(alpha = 0.7f))
+                    tela.texto("‹", cx + navW / 2f, tela.baselineCentro(btnCardY + btnCardH / 2f, pNav), pNav, navW, Paint.Align.CENTER)
+                    tela.zona(cx - 2f, cardY, navW + 4f, cardH, actionRunCallback<NavegarCartaCallback>(actionParametersOf(ChaveDelta to -1)))
+                }
+
+                tela.zona(pad, cardY, max(10f, cx - pad - 4f), cardH, abrirTudo)
+            } else {
+                tela.zona(pad, cardY, cardW, cardH, abrirTudo)
+            }
 
             val colunaLargura = (largura - pad * 2f - gap) / 2f
             val pBtn = tela.fonte(TintaPastel, R.font.montserrat_semibold, 10f)
-            MENSAGENS_RAPIDAS.forEachIndexed { i, frase ->
+            frasesAtuais.forEachIndexed { i, frase ->
                 val coluna = i % 2
                 val linhaIdx = i / 2
                 val x = pad + coluna * (colunaLargura + gap)
@@ -873,7 +1227,15 @@ private fun desenharCartinha(tela: Tela, dados: DadosWidget, status: String?) {
                 tela.retangulo(x, y, colunaLargura, btnMsgH, raioBtn, BotaoOuroPastel)
                 tela.retangulo(x, y, colunaLargura, btnMsgH, raioBtn, BordaOuroPastel.copy(alpha = 0.8f), contorno = true, espessura = 0.7f)
                 tela.texto(frase, x + colunaLargura / 2f, tela.baselineCentro(y + btnMsgH / 2f, pBtn), pBtn, colunaLargura - 10f, Paint.Align.CENTER)
-                tela.zona(x, y, colunaLargura, btnMsgH, actionRunCallback<EnviarCartaCallback>(actionParametersOf(ChaveTextoCarta to frase)))
+                tela.zona(
+                    x,
+                    y,
+                    colunaLargura,
+                    btnMsgH,
+                    actionRunCallback<EnviarCartaCallback>(
+                        actionParametersOf(ChaveTextoCarta to frase, ChaveOrigemStatus to "carta")
+                    )
+                )
             }
 
             val raioEscrever = btnEscreverH / 2f
@@ -898,28 +1260,53 @@ private fun desenharCartinha(tela: Tela, dados: DadosWidget, status: String?) {
             val pBtn = tela.fonte(TintaPastel, R.font.montserrat_semibold, 10f)
             val raioBtn = btnH / 2f
 
-            tela.zona(0f, 0f, largura, btnY - 4f, abrirTudo)
+            tela.zona(0f, yLinha - 10f, largura, btnY - yLinha + 6f, abrirTudo)
 
-            MENSAGENS_RAPIDAS.take(2).forEachIndexed { i, frase ->
+            frasesAtuais.take(2).forEachIndexed { i, frase ->
                 val x = pad + i * (colunaLargura + gap)
                 tela.sombraSuave(x, btnY, colunaLargura, btnH, raioBtn, alpha = 0.07f)
                 tela.retangulo(x, btnY, colunaLargura, btnH, raioBtn, BotaoOuroPastel)
                 tela.retangulo(x, btnY, colunaLargura, btnH, raioBtn, BordaOuroPastel.copy(alpha = 0.8f), contorno = true, espessura = 0.7f)
                 tela.texto(frase, x + colunaLargura / 2f, tela.baselineCentro(btnY + btnH / 2f, pBtn), pBtn, colunaLargura - 10f, Paint.Align.CENTER)
-                tela.zona(x, btnY, colunaLargura, btnH, actionRunCallback<EnviarCartaCallback>(actionParametersOf(ChaveTextoCarta to frase)))
+                tela.zona(
+                    x,
+                    btnY,
+                    colunaLargura,
+                    btnH,
+                    actionRunCallback<EnviarCartaCallback>(
+                        actionParametersOf(ChaveTextoCarta to frase, ChaveOrigemStatus to "carta")
+                    )
+                )
             }
         }
 
         else -> {
-            val btnH = (altura * 0.25f).coerceIn(23f, 28f)
-            val btnY = altura - pad - btnH
+            val gap = 6f
+            val btnH = (altura * 0.24f).coerceIn(22f, 26f)
+            val btnEscreverY = altura - pad - btnH
+            val btnRapidoY = btnEscreverY - gap - btnH
             val raioBtn = btnH / 2f
-            val pBtn = tela.fonte(TintaPastel, R.font.montserrat_semibold, 10.5f)
-            tela.sombraSuave(pad, btnY, largura - pad * 2f, btnH, raioBtn, alpha = 0.08f)
-            tela.retangulo(pad, btnY, largura - pad * 2f, btnH, raioBtn, BotaoOuroPastel)
-            tela.retangulo(pad, btnY, largura - pad * 2f, btnH, raioBtn, BordaOuroPastel.copy(alpha = 0.85f), contorno = true, espessura = 0.7f)
-            tela.texto("Escrever", largura / 2f, tela.baselineCentro(btnY + btnH / 2f, pBtn), pBtn, largura - pad * 2f - 8f, Paint.Align.CENTER)
-            tela.zona(0f, 0f, largura, altura, abrirCarta)
+            val pBtn = tela.fonte(TintaPastel, R.font.montserrat_semibold, 10f)
+
+            // Botão 1 toque sem abrir o app
+            tela.retangulo(pad, btnRapidoY, largura - pad * 2f, btnH, raioBtn, BotaoOuroPastel)
+            tela.retangulo(pad, btnRapidoY, largura - pad * 2f, btnH, raioBtn, BordaOuroPastel.copy(alpha = 0.85f), contorno = true, espessura = 0.7f)
+            tela.texto("Te amo ♥", largura / 2f, tela.baselineCentro(btnRapidoY + btnH / 2f, pBtn), pBtn, largura - pad * 2f - 8f, Paint.Align.CENTER)
+            tela.zona(
+                pad,
+                btnRapidoY,
+                largura - pad * 2f,
+                btnH,
+                actionRunCallback<EnviarCartaCallback>(
+                    actionParametersOf(ChaveTextoCarta to "Te amo ♥", ChaveOrigemStatus to "carta")
+                )
+            )
+
+            // Botão abrir editor completo no app
+            tela.retangulo(pad, btnEscreverY, largura - pad * 2f, btnH, raioBtn, BotaoAzulSuavePastel)
+            tela.texto("Escrever", largura / 2f, tela.baselineCentro(btnEscreverY + btnH / 2f, pBtn), pBtn, largura - pad * 2f - 8f, Paint.Align.CENTER)
+            tela.zona(0f, 0f, largura, btnRapidoY - 2f, abrirCarta)
+            tela.zona(pad, btnEscreverY, largura - pad * 2f, btnH, abrirCarta)
         }
     }
 }
@@ -928,15 +1315,28 @@ class CartaWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val prefs = prefsWidgets(context)
         val dados = lerDadosWidget(context)
-        val status = statusRecente(prefsWidgets(context))
+        val status = statusRecenteChave(prefs, CHAVE_STATUS, CHAVE_STATUS_EM)
+        val indiceCarta = prefs.getInt(CHAVE_INDICE_CARTA, 0)
+        val paginaFrases = prefs.getInt(CHAVE_PAGINA_FRASES, 0)
         provideContent {
             val tamanho = LocalSize.current
             val larguraDp = if (tamanho.width.value > 1f) tamanho.width.value else 250f
             val alturaDp = if (tamanho.height.value > 1f) tamanho.height.value else 110f
-            val tela = remember(larguraDp, alturaDp, status, dados.cartasNovas, dados.ultimaTexto, dados.ultimaDe) {
+            val tela = remember(
+                larguraDp,
+                alturaDp,
+                status,
+                indiceCarta,
+                paginaFrases,
+                dados.cartasNovas,
+                dados.ultimaTexto,
+                dados.ultimaDe,
+                dados.cartasRecebidas
+            ) {
                 Tela(context, larguraDp, alturaDp).also {
-                    desenharCartinha(it, dados, status)
+                    desenharCartinha(it, dados, status, indiceCarta, paginaFrases)
                 }
             }
             TelaWidget(tela, "Cartinha")

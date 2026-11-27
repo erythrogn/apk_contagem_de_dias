@@ -20,10 +20,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.PathParser
 
 private val DockSuperficie = Color(0xFFFBF8EC)
+private val DockSuperficieBase = Color(0xFFF4EEDB)
 private val DockBorda = Color(0xFFD6BE7A)
 
 @Composable
@@ -97,33 +98,40 @@ internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Uni
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Papel.copy(alpha = 0f),
-                        Papel.copy(alpha = 0.92f),
-                        Papel
-                    )
-                )
-            )
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
+                .wrapContentWidth()
                 .shadow(
-                    elevation = 12.dp,
+                    elevation = 18.dp,
                     shape = RoundedCornerShape(999.dp),
-                    spotColor = Tinta.copy(alpha = 0.14f),
-                    ambientColor = Tinta.copy(alpha = 0.06f)
+                    spotColor = Tinta.copy(alpha = 0.22f),
+                    ambientColor = Tinta.copy(alpha = 0.10f)
                 )
                 .clip(RoundedCornerShape(999.dp))
-                .background(DockSuperficie)
-                .border(1.dp, DockBorda.copy(alpha = 0.75f), RoundedCornerShape(999.dp))
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            DockSuperficie.copy(alpha = 0.97f),
+                            DockSuperficieBase.copy(alpha = 0.96f)
+                        )
+                    )
+                )
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.85f),
+                            DockBorda.copy(alpha = 0.85f)
+                        )
+                    ),
+                    shape = RoundedCornerShape(999.dp)
+                )
                 .padding(horizontal = 8.dp, vertical = 7.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             abas.forEach { aba ->
@@ -136,26 +144,34 @@ internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Uni
                     label = "corIconeDock"
                 )
                 val fundoPilula by animateColorAsState(
-                    targetValue = if (ativa) Ouro.copy(alpha = 0.24f) else Color.Transparent,
+                    targetValue = if (ativa) Ouro.copy(alpha = 0.26f) else Color.Transparent,
                     animationSpec = tween(durationMillis = 240),
                     label = "fundoPilulaDock"
                 )
                 val bordaPilula by animateColorAsState(
-                    targetValue = if (ativa) DockBorda.copy(alpha = 0.85f) else Color.Transparent,
+                    targetValue = if (ativa) DockBorda.copy(alpha = 0.9f) else Color.Transparent,
                     animationSpec = tween(durationMillis = 240),
                     label = "bordaPilulaDock"
                 )
                 val escala by animateFloatAsState(
                     targetValue = when {
                         pressionada -> 0.92f
-                        ativa -> 1.03f
+                        ativa -> 1.04f
                         else -> 1f
                     },
                     animationSpec = spring(
-                        dampingRatio = 0.7f,
+                        dampingRatio = 0.68f,
                         stiffness = Spring.StiffnessMedium
                     ),
                     label = "escalaItemDock"
+                )
+                val elevacaoVertical by animateDpAsState(
+                    targetValue = if (ativa) (-1.5).dp else 0.dp,
+                    animationSpec = spring(
+                        dampingRatio = 0.72f,
+                        stiffness = Spring.StiffnessMediumLow
+                    ),
+                    label = "levitacaoItemDock"
                 )
                 val tamanhoPonto by animateDpAsState(
                     targetValue = if (ativa) 0.dp else 3.dp,
@@ -168,6 +184,7 @@ internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Uni
                         .graphicsLayer {
                             scaleX = escala
                             scaleY = escala
+                            translationY = elevacaoVertical.toPx()
                         }
                         .clip(RoundedCornerShape(999.dp))
                         .background(fundoPilula)
@@ -192,7 +209,7 @@ internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Uni
                             )
                         }
                         .padding(
-                            horizontal = if (ativa) 14.dp else 11.dp,
+                            horizontal = if (ativa) 14.dp else 10.dp,
                             vertical = 9.dp
                         ),
                     verticalAlignment = Alignment.CenterVertically,
@@ -201,7 +218,7 @@ internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Uni
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         IconeLinha(
                             caminhos = aba.caminhos,
-                            tamanho = 21.dp,
+                            tamanho = 20.dp,
                             cor = corIcone,
                             espessura = if (ativa) aba.espessura + 0.2f else aba.espessura
                         )
