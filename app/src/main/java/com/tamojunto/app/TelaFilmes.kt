@@ -16,10 +16,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -43,12 +43,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
-// Cada seção tem a coleção no banco, o rótulo e os status que o site usa em cada filtro.
+// Filmes, séries e jogos. Cada seção tem a coleção no banco, os textos e os status do site.
 enum class Secao(
     val rotulo: String,
     val singular: String,
@@ -74,18 +73,12 @@ enum class Secao(
 private fun generosDe(texto: String): List<String> =
     texto.split(',').map { it.trim() }.filter { it.isNotBlank() }
 
-// Filtro de status, como no site: "assistir" e "assistido" usam o campo watched; o resto usa status.
+// Filtro de status: "assistir" e "assistido" usam o campo watched; o resto usa o campo status.
 private fun Item.combinaStatus(filtro: String): Boolean = when (filtro) {
     "todos" -> true
     "assistir" -> !feito
     "assistido" -> feito
     else -> status == filtro
-}
-
-private fun Secao.rotuloMarcar(feito: Boolean): String = when (this) {
-    Secao.FILMES -> if (feito) "Desmarcar como assistido" else "Marcar como assistido"
-    Secao.SERIES -> if (feito) "Voltar para assistindo" else "Marcar como concluída"
-    Secao.JOGOS -> if (feito) "Voltar a jogar" else "Marcar como zerado"
 }
 
 private fun Secao.rotuloFeito(): String = when (this) {
@@ -107,16 +100,15 @@ private fun notasDoCasal(item: Item, eu: String?): Pair<Int, Int> = when (eu) {
     else -> item.nota1 to item.nota2
 }
 
-// Capa do filme. Sem capa, mostra o título no lugar, no papel do site.
+// Capa. Sem capa, mostra o título no papel do site.
 @Composable
-private fun CapaMidia(poster: String, titulo: String, largura: Dp, aoClicar: (() -> Unit)? = null) {
-    val base = Modifier
-        .width(largura)
-        .aspectRatio(2f / 3f)
-        .clip(RoundedCornerShape(4.dp))
-        .background(Tinta.copy(alpha = 0.08f))
-    val modificador = if (aoClicar != null) base.clickable(onClick = aoClicar) else base
-    Box(modificador, contentAlignment = Alignment.Center) {
+private fun CapaMidia(poster: String, titulo: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(Tinta.copy(alpha = 0.08f)),
+        contentAlignment = Alignment.Center
+    ) {
         if (poster.isNotBlank()) {
             AsyncImage(
                 model = poster,
@@ -136,7 +128,7 @@ private fun CapaMidia(poster: String, titulo: String, largura: Dp, aoClicar: (()
     }
 }
 
-// Tela de Filmes, Séries e Jogos, pensada para o celular: carrossel de capas e lista logo abaixo.
+// Tela de Filmes, Séries e Jogos: uma grade de capas. Tocar numa capa abre a ficha, onde tudo se faz.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TelaFilmes(dados: DadosDoCasal) {
@@ -147,9 +139,7 @@ fun TelaFilmes(dados: DadosDoCasal) {
     var novaAberta by rememberSaveable { mutableStateOf(false) }
     var chaveAberta by rememberSaveable { mutableStateOf<String?>(null) }
     var nomesPessoas by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var aviso by remember { mutableStateOf("") }
 
-    // Nomes das pessoas vêm do servidor, como no Início.
     LaunchedEffect(dados.casalId) {
         if (dados.casalId != null) {
             val (inicio, _) = InicioServidorCasal.carregar()
@@ -163,10 +153,10 @@ fun TelaFilmes(dados: DadosDoCasal) {
         if (slot == eu) "Você" else "Outra pessoa"
     }
 
-    val lista = when (secao) {
-        Secao.FILMES -> dados.filmes
-        Secao.SERIES -> dados.series
-        Secao.JOGOS -> dados.jogos
+    val lista: List<Item> = when (secao) {
+        Secao.FILMES -> dados.filmes.toList()
+        Secao.SERIES -> dados.series.toList()
+        Secao.JOGOS -> dados.jogos.toList()
     }
     val generos = lista.flatMap { generosDe(it.genero) }.distinct().sorted()
     val visiveis = lista.filter {
@@ -174,217 +164,90 @@ fun TelaFilmes(dados: DadosDoCasal) {
             (generoEscolhido == "todos" || generoEscolhido in generosDe(it.genero))
     }
     val feitos = lista.count { it.feito }
-    val itemAberto = chaveAberta?.let { chave -> lista.firstOrNull { it.chave == chave } }
-    val pagina = rememberPagerState(pageCount = { visiveis.size })
+    val aberto = chaveAberta?.let { chave -> lista.firstOrNull { it.chave == chave } }
 
     fun trocarSecao(nova: Secao) {
         secao = nova
         statusEscolhido = "todos"
         generoEscolhido = "todos"
+        chaveAberta = null
     }
 
-    fun salvarNota(item: Item, nota: Int) {
-        val campo = campoNota(eu) ?: return
-        dados.atualizarItem(secao.colecao, item.chave, mapOf(campo to nota), item.titulo) {}
-    }
-
-    LazyColumn(
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
         modifier = Modifier.fillMaxSize().padding(12.dp).papelDoSite().padding(20.dp),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        contentPadding = PaddingValues(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        item {
-            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    "nossos ${secao.plural}",
-                    style = EstiloTituloSecao,
-                    textAlign = TextAlign.Center
-                )
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
+        // Cabeçalho: seções, progresso, o botão de adicionar e os filtros. Ocupa a largura toda.
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Column(
+                Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("nossos ${secao.plural}", style = EstiloTituloSecao, textAlign = TextAlign.Center)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     Secao.entries.forEach { s ->
                         AbaSite(texto = s.rotulo, ativa = secao == s, aoClicar = { trocarSecao(s) })
                     }
                 }
-            }
-        }
-
-        item {
-            Column(Modifier.fillMaxWidth()) {
-                Text(
-                    "$feitos de ${lista.size} ${secao.rotuloFeitos}",
-                    style = EstiloRotulo,
-                    color = TintaSuave,
-                    textAlign = TextAlign.Center,
+                Column(Modifier.fillMaxWidth()) {
+                    Text(
+                        "$feitos de ${lista.size} ${secao.rotuloFeitos}",
+                        style = EstiloRotulo,
+                        color = TintaSuave,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    val fracao = if (lista.isEmpty()) 0f else feitos.toFloat() / lista.size
+                    Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(3.dp).background(Tinta.copy(alpha = 0.12f))) {
+                        Box(Modifier.fillMaxWidth(fracao).height(3.dp).background(Ouro))
+                    }
+                }
+                BotaoSite(
+                    texto = "Adicionar ${secao.singular}",
+                    aoClicar = { novaAberta = true },
+                    primario = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                val fracao = if (lista.isEmpty()) 0f else feitos.toFloat() / lista.size
-                Box(
-                    Modifier
-                        .padding(top = 6.dp)
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .background(Tinta.copy(alpha = 0.12f))
-                ) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth(fracao)
-                            .height(3.dp)
-                            .background(Ouro)
-                    )
-                }
-            }
-        }
-
-        item {
-            BotaoSite(
-                texto = "Adicionar ${secao.singular}",
-                aoClicar = { novaAberta = true },
-                primario = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-
-        item {
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                secao.statusOpcoes.forEach { (valor, rotulo) ->
-                    FiltroSite(texto = rotulo, ativo = statusEscolhido == valor, aoClicar = { statusEscolhido = valor })
-                }
-            }
-        }
-
-        if (generos.isNotEmpty()) {
-            item {
+                Text("Mostrar", style = EstiloRotulo, color = TintaSuave)
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    FiltroSite(texto = "Todos os gêneros", ativo = generoEscolhido == "todos", aoClicar = { generoEscolhido = "todos" })
-                    generos.forEach { g ->
-                        FiltroSite(texto = g, ativo = generoEscolhido == g, aoClicar = { generoEscolhido = g })
+                    secao.statusOpcoes.forEach { (valor, rotulo) ->
+                        FiltroSite(texto = rotulo, ativo = statusEscolhido == valor, aoClicar = { statusEscolhido = valor })
+                    }
+                }
+                if (generos.isNotEmpty()) {
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FiltroSite(texto = "Todos os gêneros", ativo = generoEscolhido == "todos", aoClicar = { generoEscolhido = "todos" })
+                        generos.forEach { g ->
+                            FiltroSite(texto = g, ativo = generoEscolhido == g, aoClicar = { generoEscolhido = g })
+                        }
                     }
                 }
             }
         }
 
         if (visiveis.isEmpty()) {
-            item {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
-                    "Nada aqui ainda. Adicione ${secao.singular} ou mude o filtro.",
+                    if (lista.isEmpty()) "Ainda não há ${secao.plural} na lista. Toque em Adicionar ${secao.singular}."
+                    else "Nada com este filtro.",
                     style = EstiloApoio,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 )
             }
         } else {
-            // Carrossel de capas: cada página mostra a capa, as notas e o botão de marcar.
-            item {
-                HorizontalPager(
-                    state = pagina,
-                    contentPadding = PaddingValues(horizontal = 36.dp),
-                    pageSpacing = 14.dp,
-                    modifier = Modifier.fillMaxWidth().height(560.dp)
-                ) { indice ->
-                    val item = visiveis.getOrNull(indice) ?: return@HorizontalPager
-                    Column(
-                        Modifier.fillMaxSize().padding(horizontal = 4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        CapaMidia(
-                            poster = item.poster,
-                            titulo = item.titulo,
-                            largura = 180.dp,
-                            aoClicar = { chaveAberta = item.chave }
-                        )
-                        Text(
-                            item.titulo.ifBlank { "Sem título" },
-                            style = EstiloTituloSecao,
-                            textAlign = TextAlign.Center,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        val meta = listOf(item.ano, item.genero, item.quando).filter { it.isNotBlank() }
-                        if (meta.isNotEmpty()) {
-                            Text(
-                                meta.joinToString(" · "),
-                                style = EstiloRotulo,
-                                color = TintaSuave,
-                                textAlign = TextAlign.Center,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        val (minha, dela) = notasDoCasal(item, eu)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(nomeDe(eu ?: "pessoa1"), style = EstiloRotulo, color = Tinta, modifier = Modifier.width(78.dp))
-                            Estrelas(
-                                valor = minha,
-                                aoMudar = if (eu != null) ({ nota -> salvarNota(item, nota) }) else null,
-                                tamanho = 20.dp
-                            )
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(nomeDe(outra), style = EstiloRotulo, color = Tinta, modifier = Modifier.width(78.dp))
-                            Estrelas(valor = dela, tamanho = 20.dp)
-                        }
-                        BotaoSite(
-                            texto = secao.rotuloMarcar(item.feito),
-                            aoClicar = { dados.alternarFeito(secao.colecao, item) { aviso = "Não consegui salvar. Tente de novo." } },
-                            primario = !item.feito,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-            }
-        }
-
-        if (visiveis.isNotEmpty()) {
-            item {
-                Text(
-                    "Todos",
-                    style = EstiloTituloSecao,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
             items(visiveis, key = { it.chave }) { item ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { chaveAberta = item.chave },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    CapaMidia(poster = item.poster, titulo = item.titulo, largura = 46.dp)
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            item.titulo.ifBlank { "Sem título" },
-                            style = EstiloApoio,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        val meta = listOf(item.ano, item.genero).filter { it.isNotBlank() }
-                        Text(
-                            if (item.feito) secao.rotuloFeito() else meta.joinToString(" · ").ifBlank { "Na lista" },
-                            style = EstiloRotulo,
-                            color = TintaSuave,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-        }
-
-        if (aviso.isNotBlank()) {
-            item {
-                Text(aviso, style = EstiloRotulo, color = Ocre, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                CartaoMidia(item = item, rotuloFeito = secao.rotuloFeito(), aoAbrir = { chaveAberta = item.chave })
             }
         }
     }
@@ -393,46 +256,86 @@ fun TelaFilmes(dados: DadosDoCasal) {
         FormularioNovaMidia(secao = secao, dados = dados, aoFechar = { novaAberta = false })
     }
 
-    itemAberto?.let { item ->
-        FichaMidiaPainel(
+    aberto?.let { item ->
+        PainelMidia(
+            dados = dados,
             secao = secao,
             item = item,
             eu = eu,
+            nomeEu = nomeDe(eu ?: "pessoa1"),
             nomeOutra = nomeDe(outra),
-            aoNota = { nota -> salvarNota(item, nota) },
-            aoMarcar = { dados.alternarFeito(secao.colecao, item) {} },
-            aoAbrirTrailer = { url ->
-                contexto.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            },
-            aoSalvarOnde = { onde -> dados.atualizarItem(secao.colecao, item.chave, mapOf("where" to onde), item.titulo) {} },
-            aoApagar = {
-                dados.apagarItem(secao.colecao, item.chave, item.titulo) {}
-                chaveAberta = null
-            },
+            aoAbrirTrailer = { url -> contexto.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
             aoFechar = { chaveAberta = null }
         )
     }
 }
 
-// Ficha de um item em painel inferior: capa, elenco, notas, onde assistir, trailer e apagar.
+// Uma capa na grade: a imagem, o selo de "feito" e o título embaixo.
+@Composable
+private fun CartaoMidia(item: Item, rotuloFeito: String, aoAbrir: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = aoAbrir)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
+            CapaMidia(poster = item.poster, titulo = item.titulo, modifier = Modifier.fillMaxSize())
+            if (item.feito) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Ouro)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(rotuloFeito, style = EstiloRotulo, color = Tinta)
+                }
+            }
+        }
+        Text(
+            item.titulo.ifBlank { "Sem título" },
+            style = EstiloApoio,
+            color = Tinta,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+        val meta = listOf(item.ano, item.genero).filter { it.isNotBlank() }.joinToString(" · ")
+        if (meta.isNotBlank()) {
+            Text(meta, style = EstiloRotulo, color = TintaSuave, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+// Ficha do item em painel inferior. Tudo o que se faz com um item está aqui, com nome claro:
+// situação, notas, onde assistir, trailer e apagar.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FichaMidiaPainel(
+private fun PainelMidia(
+    dados: DadosDoCasal,
     secao: Secao,
     item: Item,
     eu: String?,
+    nomeEu: String,
     nomeOutra: String,
-    aoNota: (Int) -> Unit,
-    aoMarcar: () -> Unit,
     aoAbrirTrailer: (String) -> Unit,
-    aoSalvarOnde: (String) -> Unit,
-    aoApagar: () -> Unit,
     aoFechar: () -> Unit
 ) {
     val estado = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var onde by remember(item.chave) { mutableStateOf(item.onde) }
     var confirmarApagar by remember { mutableStateOf(false) }
     val (minha, dela) = notasDoCasal(item, eu)
+    val statusAtual = if (secao == Secao.FILMES) (if (item.feito) "assistido" else "assistir") else item.status
+
+    fun mudarStatus(valor: String) {
+        if (secao == Secao.FILMES) {
+            dados.atualizarItem("filmes", item.chave, mapOf("watched" to (valor == "assistido")), item.titulo) {}
+        } else {
+            dados.atualizarItem(secao.colecao, item.chave, mapOf("status" to valor), item.titulo) {}
+        }
+    }
+
+    fun salvarNota(nota: Int) {
+        val campo = campoNota(eu) ?: return
+        dados.atualizarItem(secao.colecao, item.chave, mapOf(campo to nota), item.titulo) {}
+    }
 
     ModalBottomSheet(onDismissRequest = aoFechar, sheetState = estado) {
         Column(
@@ -442,14 +345,10 @@ private fun FichaMidiaPainel(
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            CapaMidia(poster = item.poster, titulo = item.titulo, largura = 200.dp)
-            Text(
-                item.titulo.ifBlank { "Sem título" },
-                style = EstiloTituloSecao,
-                textAlign = TextAlign.Center
-            )
+            CapaMidia(poster = item.poster, titulo = item.titulo, modifier = Modifier.width(170.dp).aspectRatio(2f / 3f))
+            Text(item.titulo.ifBlank { "Sem título" }, style = EstiloTituloSecao, textAlign = TextAlign.Center)
             val meta = listOf(item.ano, item.genero, item.quando).filter { it.isNotBlank() }
             if (meta.isNotEmpty()) {
                 Text(meta.joinToString(" · "), style = EstiloRotulo, color = TintaSuave, textAlign = TextAlign.Center)
@@ -465,31 +364,48 @@ private fun FichaMidiaPainel(
                 Text("Elenco: ${item.elenco}", style = EstiloApoio, textAlign = TextAlign.Center)
             }
             if (item.quem.isNotBlank()) {
-                Text("Indicação: ${item.quem}", style = EstiloRotulo, color = TintaSuave)
+                Text("Indicado por ${item.quem}", style = EstiloRotulo, color = TintaSuave)
             }
             if (secao == Secao.JOGOS && item.plataforma.isNotBlank()) {
                 Text("Plataforma: ${item.plataforma}", style = EstiloRotulo, color = TintaSuave)
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Você", style = EstiloRotulo, color = Tinta, modifier = Modifier.width(78.dp))
-                Estrelas(valor = minha, aoMudar = if (eu != null) aoNota else null, tamanho = 24.dp)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(nomeOutra, style = EstiloRotulo, color = Tinta, modifier = Modifier.width(78.dp))
-                Estrelas(valor = dela, tamanho = 24.dp)
+            // Situação: um toque troca. O item marcado fica destacado.
+            Text("Situação", style = EstiloTituloSecao, color = Tinta)
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                secao.statusOpcoes.drop(1).forEach { (valor, rotulo) ->
+                    FiltroSite(texto = rotulo, ativo = statusAtual == valor, aoClicar = { mudarStatus(valor) })
+                }
             }
 
+            // Notas: cada pessoa dá a sua. Tocar na nota atual a tira.
+            Text("Notas", style = EstiloTituloSecao, color = Tinta)
+            if (eu == null) {
+                Text("Entre no casal para dar sua nota.", style = EstiloRotulo, color = TintaSuave, textAlign = TextAlign.Center)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(nomeEu, style = EstiloRotulo, color = Tinta, modifier = Modifier.width(90.dp))
+                Estrelas(valor = minha, aoMudar = if (eu != null) ({ nota: Int -> salvarNota(nota) }) else null, tamanho = 26.dp)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(nomeOutra, style = EstiloRotulo, color = Tinta, modifier = Modifier.width(90.dp))
+                Estrelas(valor = dela, tamanho = 26.dp)
+            }
+
+            // Onde assistir: salvo só quando a pessoa aperta o botão.
             OutlinedTextField(
                 value = onde,
                 onValueChange = { onde = it },
-                label = { Text("Onde assistir") },
+                label = { Text("Onde assistir ou jogar") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
             BotaoSite(
-                texto = "Salvar onde assistir",
-                aoClicar = { aoSalvarOnde(onde.trim()) },
+                texto = "Salvar onde",
+                aoClicar = { dados.atualizarItem(secao.colecao, item.chave, mapOf("where" to onde.trim()), item.titulo) {} },
                 habilitado = onde.trim() != item.onde,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -501,13 +417,9 @@ private fun FichaMidiaPainel(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-            BotaoSite(
-                texto = secao.rotuloMarcar(item.feito),
-                aoClicar = aoMarcar,
-                primario = !item.feito,
-                modifier = Modifier.fillMaxWidth()
-            )
-            TextButton(onClick = { confirmarApagar = true }) { Text("Apagar da lista") }
+            TextButton(onClick = { confirmarApagar = true }) {
+                Text("Apagar da lista", style = EstiloBotao, color = Ocre)
+            }
         }
     }
 
@@ -516,7 +428,10 @@ private fun FichaMidiaPainel(
             titulo = "Apagar ${item.titulo}?",
             texto = "Isso remove da lista do casal.",
             rotuloConfirmar = "Apagar",
-            aoConfirmar = aoApagar,
+            aoConfirmar = {
+                dados.apagarItem(secao.colecao, item.chave, item.titulo) {}
+                aoFechar()
+            },
             aoFechar = { confirmarApagar = false }
         )
     }
@@ -533,9 +448,7 @@ private fun FormularioNovaMidia(secao: Secao, dados: DadosDoCasal, aoFechar: () 
     var indicado by rememberSaveable { mutableStateOf("") }
     var quando by rememberSaveable { mutableStateOf("") }
     var plataforma by rememberSaveable { mutableStateOf("") }
-    var statusNovo by rememberSaveable {
-        mutableStateOf(secao.statusOpcoes.getOrNull(1)?.first ?: "")
-    }
+    var statusNovo by rememberSaveable { mutableStateOf(secao.statusOpcoes.getOrNull(1)?.first ?: "") }
     var ficha by remember { mutableStateOf<FichaMidia?>(null) }
     var buscando by remember { mutableStateOf(false) }
     val dataValida = quando.isBlank() || Regex("\\d{4}-\\d{2}-\\d{2}").matches(quando.trim())
@@ -544,7 +457,7 @@ private fun FormularioNovaMidia(secao: Secao, dados: DadosDoCasal, aoFechar: () 
     LaunchedEffect(titulo, ano, secao) {
         ficha = null
         if (titulo.trim().length >= 2) {
-            delay(700)
+            delay(600)
             buscando = true
             ficha = when (secao) {
                 Secao.FILMES -> BuscaMidia.filmeOuSerie(false, titulo.trim(), ano.trim())
@@ -566,7 +479,11 @@ private fun FormularioNovaMidia(secao: Secao, dados: DadosDoCasal, aoFechar: () 
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text("Novo ${secao.singular}", style = EstiloTituloSecao, textAlign = TextAlign.Center)
-            CapaMidia(poster = ficha?.poster.orEmpty(), titulo = titulo, largura = 140.dp)
+            CapaMidia(
+                poster = ficha?.poster.orEmpty(),
+                titulo = titulo,
+                modifier = Modifier.width(130.dp).aspectRatio(2f / 3f)
+            )
             if (buscando) {
                 Text("Procurando a capa…", style = EstiloRotulo, color = TintaSuave)
             } else if (ficha != null && ficha?.poster.isNullOrBlank()) {
@@ -591,6 +508,7 @@ private fun FormularioNovaMidia(secao: Secao, dados: DadosDoCasal, aoFechar: () 
                 OutlinedTextField(value = plataforma, onValueChange = { plataforma = it }, label = { Text("Plataforma (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             }
             if (secao != Secao.FILMES) {
+                Text("Situação", style = EstiloRotulo, color = TintaSuave)
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
