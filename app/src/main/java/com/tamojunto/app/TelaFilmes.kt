@@ -21,7 +21,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -30,7 +29,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -88,12 +86,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -248,7 +244,7 @@ fun TelaFilmes(dados: DadosDoCasal) {
     var filtrosAbertos by rememberSaveable { mutableStateOf(false) }
     var novaAberta by rememberSaveable { mutableStateOf(false) }
     var chaveAberta by rememberSaveable { mutableStateOf<String?>(null) }
-    var nomesPessoas by remember { mutableStateOf>(emptyMap()) }
+    var nomesPessoas by remember { mutableStateOf(emptyMap<String, String>()) }
 
     val fabExpandido by remember {
         derivedStateOf { gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset < 60 }
@@ -314,7 +310,6 @@ fun TelaFilmes(dados: DadosDoCasal) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Cabeçalho editorial minimalista
             item(span = { GridItemSpan(maxLineSpan) }, key = "header") {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -367,7 +362,6 @@ fun TelaFilmes(dados: DadosDoCasal) {
                             }
                         }
 
-                        // Pílula compacta de progresso
                         Surface(
                             shape = RoundedCornerShape(999.dp),
                             color = CartaoMidiaTopo,
@@ -397,7 +391,6 @@ fun TelaFilmes(dados: DadosDoCasal) {
                         }
                     }
 
-                    // Linha de progresso ultrafina
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -414,7 +407,6 @@ fun TelaFilmes(dados: DadosDoCasal) {
                         )
                     }
 
-                    // Seletor segmentado de seção (Filmes | Séries | Jogos)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -461,7 +453,6 @@ fun TelaFilmes(dados: DadosDoCasal) {
                         }
                     }
 
-                    // Toolbar minimalista: modos de visualização + botão de filtros recolhível
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -530,8 +521,7 @@ fun TelaFilmes(dados: DadosDoCasal) {
                         }
                     }
 
-                    // Gaveta animada de filtros de Status e Gênero
-                    AnimatedVisibility(
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = filtrosAbertos,
                         enter = fadeIn(tween(200)) + expandVertically(spring(dampingRatio = 0.82f)),
                         exit = fadeOut(tween(150)) + shrinkVertically(tween(180))
@@ -722,7 +712,6 @@ fun TelaFilmes(dados: DadosDoCasal) {
             }
         }
 
-        // Botão flutuante (FAB) expansível
         FloatingActionButton(
             onClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -1429,7 +1418,6 @@ private fun FormularioNovaMidia(secao: Secao, dados: DadosDoCasal, aoFechar: () 
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Atalhos rápidos de data para mobile
             val hoje = remember { LocalDate.now(FUSO_BELEM) }
             val atalhosData = remember(hoje) {
                 listOf(
