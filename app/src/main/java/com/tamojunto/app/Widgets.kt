@@ -1,3 +1,4 @@
+cat << 'EOF' > app/src/main/java/com/tamojunto/app/Widgets.kt
 package com.tamojunto.app
 
 import android.content.ComponentName
