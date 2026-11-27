@@ -12,9 +12,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.PathParser
+import androidx.core.content.res.ResourcesCompat
 import androidx.glance.Image
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
@@ -50,6 +51,7 @@ import androidx.glance.unit.ColorProvider
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
+import kotlin.math.ceil
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -160,23 +162,37 @@ private fun estilo(tamanho: Int, cor: Color, negrito: Boolean = false, serifa: B
 
 private val MESES_CURTOS = listOf("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
 
-// Envelope desenhado no mesmo traço fino dos ícones do app (viewBox 24).
-private fun iconeEnvelope(cor: Int, tamanhoPx: Int): Bitmap {
-    val bitmap = Bitmap.createBitmap(tamanhoPx, tamanhoPx, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
+// Texto na fonte do site (Cormorant), desenhado num bitmap. O Glance não aceita as fontes do app,
+// então os títulos dos widgets são imagens feitas com o mesmo arquivo .ttf que já está no projeto.
+class RotuloImagem(val imagem: ImageProvider, val largura: Dp, val altura: Dp, val descricao: String)
+
+private fun rotuloImagem(contexto: Context, texto: String, fonte: Int, tamanhoSp: Float, cor: Color): RotuloImagem {
+    val metricas = contexto.resources.displayMetrics
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = cor
-        style = Paint.Style.STROKE
-        strokeWidth = 1.6f
-        strokeCap = Paint.Cap.ROUND
-        strokeJoin = Paint.Join.ROUND
+        typeface = ResourcesCompat.getFont(contexto, fonte)
+        textSize = tamanhoSp * metricas.scaledDensity
+        color = cor.toArgb()
     }
-    val escala = tamanhoPx / 24f
-    canvas.scale(escala, escala)
-    listOf("M3 5h18v14H3z", "M3 5l9 8 9-8").forEach { caminho ->
-        canvas.drawPath(PathParser.createPathFromPathData(caminho), paint)
-    }
-    return bitmap
+    val medidas = paint.fontMetrics
+    val largura = ceil(paint.measureText(texto)).toInt().coerceAtLeast(1)
+    val altura = ceil(medidas.descent - medidas.ascent).toInt().coerceAtLeast(1)
+    val bitmap = Bitmap.createBitmap(largura, altura, Bitmap.Config.ARGB_8888)
+    Canvas(bitmap).drawText(texto, 0f, -medidas.ascent, paint)
+    return RotuloImagem(
+        imagem = ImageProvider(bitmap),
+        largura = (largura / metricas.density).dp,
+        altura = (altura / metricas.density).dp,
+        descricao = texto
+    )
+}
+
+@Composable
+private fun ImagemRotulo(rotulo: RotuloImagem) {
+    Image(
+        provider = rotulo.imagem,
+        contentDescription = rotulo.descricao,
+        modifier = GlanceModifier.width(rotulo.largura).height(rotulo.altura)
+    )
 }
 
 // ---- 1. Contagem de dias: bloco dourado, número grande em serifa ----
@@ -185,6 +201,12 @@ class ContagemWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val inicio = lerDadosWidget(context).inicio
         val contagem = inicio?.let { calcularContagem(it, LocalDateTime.now(FUSO_BELEM)) }
+        val numero = rotuloImagem(
+            context,
+            contagem?.let { formatarMilhar(it.dias.toInt()) } ?: "--",
+            R.font.cormorant_garamond_semibold, 48f, Tinta
+        )
+        val diasJuntos = rotuloImagem(context, "dias juntos", R.font.cormorant_garamond_regular, 18f, Tinta)
         provideContent {
             Column(
                 modifier = GlanceModifier
@@ -198,11 +220,8 @@ class ContagemWidget : GlanceAppWidget() {
                     style = estilo(11, Tinta)
                 )
                 Spacer(GlanceModifier.height(4.dp))
-                Text(
-                    contagem?.let { formatarMilhar(it.dias.toInt()) } ?: "--",
-                    style = estilo(44, Tinta, negrito = true, serifa = true)
-                )
-                Text("dias juntos", style = estilo(16, Tinta, serifa = true))
+                ImagemRotulo(numero)
+                ImagemRotulo(diasJuntos)
                 Spacer(GlanceModifier.height(6.dp))
                 Text(contagem?.composicao.orEmpty(), style = estilo(11, TintaSuave), maxLines = 2)
             }
@@ -221,6 +240,7 @@ class EventosWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val eventos = lerDadosWidget(context).eventos
+        val titulo = rotuloImagem(context, "Próximas datas", R.font.cormorant_garamond_semibold, 20f, Tinta)
         provideContent {
             // Em tela alta cabem três linhas; em tela baixa, duas.
             val linhas = if (LocalSize.current.height >= 200.dp) 3 else 2
@@ -231,7 +251,7 @@ class EventosWidget : GlanceAppWidget() {
                     .padding(14.dp)
                     .clickable(onClick = abrirApp(context))
             ) {
-                Text("Próximas datas", style = estilo(15, Tinta, negrito = true, serifa = true))
+                ImagemRotulo(titulo)
                 Text("Os próximos compromissos", style = estilo(11, TintaSuave))
                 Spacer(GlanceModifier.height(8.dp))
                 if (eventos.isEmpty()) {
@@ -289,7 +309,8 @@ class EventosWidgetReceiver : GlanceAppWidgetReceiver() {
 class CartaWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val nome = lerDadosWidget(context).nomeOutra
-        val icone = ImageProvider(iconeEnvelope(Creme.toArgb(), 96))
+        val icone = ImageProvider(R.drawable.ic_envelope_creme)
+        val titulo = rotuloImagem(context, "Cartinha", R.font.cormorant_garamond_semibold, 22f, Creme)
         provideContent {
             Column(
                 modifier = GlanceModifier
@@ -301,7 +322,7 @@ class CartaWidget : GlanceAppWidget() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Image(provider = icone, contentDescription = null, modifier = GlanceModifier.size(26.dp))
                     Spacer(GlanceModifier.width(8.dp))
-                    Text("Cartinha", style = estilo(18, Creme, negrito = true, serifa = true))
+                    ImagemRotulo(titulo)
                 }
                 Spacer(GlanceModifier.height(6.dp))
                 Text(
