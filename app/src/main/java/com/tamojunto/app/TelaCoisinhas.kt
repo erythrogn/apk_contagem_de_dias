@@ -562,7 +562,7 @@ fun TelaCoisinhas(dados: DadosDoCasal) {
                     }
 
                     // Gaveta animada de ordenação e filtro "Ocultar feitas"
-                    AnimatedVisibility(
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = ferramentasAbertas,
                         enter = fadeIn(tween(200)) + expandVertically(spring(dampingRatio = 0.8f)),
                         exit = fadeOut(tween(160)) + shrinkVertically(tween(180))
@@ -1131,7 +1131,7 @@ private fun LinhaItemCardapio(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    AnimatedVisibility(
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = item.feito,
                         enter = fadeIn(tween(180)),
                         exit = fadeOut(tween(120))
