@@ -1,10 +1,3 @@
-Mantive exatamente as mesmas assinaturas (`IconeLinha`, `EstiloMenu` e `BarraInferior`), tokens de tema (`Papel`, `Ouro`, `Tinta`, `TintaSuave`, `Sem`) e propriedades de `Aba`, modernizando a barra com:
-
-* **Transições fluidas a 60fps:** `animateColorAsState`, `animateDpAsState` e `animateFloatAsState` (via `graphicsLayer`) para suavizar a troca de cor, a expansão do filete dourado inferior e o destaque do ícone ativo.
-* **Pílula sutil no ícone ativo:** fundo translúcido em `Ouro` (`16%` de opacidade) com cantos arredondados que destaca a aba selecionada sem pesar no visual de papel.
-* **Acabamento editorial:** filete superior com gradiente dourado suave, sombra discreta de elevação e remoção do ripple retangular padrão do Compose no clique.
-
-```kotlin
 package com.tamojunto.app
 
 import androidx.compose.animation.animateColorAsState
@@ -199,5 +192,3 @@ internal fun BarraInferior(abas: List<Aba>, atual: Aba, aoEscolher: (Aba) -> Uni
         }
     }
 }
-
-```
