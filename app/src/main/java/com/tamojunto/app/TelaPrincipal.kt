@@ -20,6 +20,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +65,31 @@ fun TelaPrincipal(usuario: FirebaseUser) {
 
     LaunchedEffect(usuario.uid) { Servidor.entrar() }
 
+    val contexto = LocalContext.current
+    var nomesCasal by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var escreverCarta by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(usuario.uid, dados.casalId) {
+        if (dados.casalId != null) {
+            val (inicio, _) = InicioServidorCasal.carregar()
+            nomesCasal = inicio?.nomes ?: emptyMap()
+        }
+    }
+
+    // Os widgets da tela inicial leem uma cópia destes dados: grava de novo sempre que algo muda.
+    LaunchedEffect(usuario.uid) {
+        snapshotFlow { montarDadosWidget(dados, nomesCasal) }
+            .collect { atualizarWidgets(contexto, it) }
+    }
+
+    // Um toque no widget de cartinha abre o formulário direto.
+    LaunchedEffect(PedidosWidget.cartaPendente) {
+        if (PedidosWidget.cartaPendente) {
+            PedidosWidget.cartaPendente = false
+            escreverCarta = true
+        }
+    }
+
     var aba by rememberSaveable { mutableStateOf(Aba.INICIO) }
 
     Scaffold(
@@ -80,6 +107,16 @@ fun TelaPrincipal(usuario: FirebaseUser) {
                 Aba.MAIS -> TelaMais(dados, usuario)
             }
         }
+    }
+
+    if (escreverCarta) {
+        val eu = dados.meuSlot ?: "pessoa1"
+        val outra = if (eu == "pessoa1") "pessoa2" else "pessoa1"
+        DialogoEscreverCartinha(
+            nomeOutra = nomesCasal[outra].orEmpty().ifBlank { "Parceiro(a)" },
+            aoEnviar = { dados.enviarCartinha(it) },
+            aoFechar = { escreverCarta = false }
+        )
     }
 }
 

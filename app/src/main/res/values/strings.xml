@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Contagem de Dias</string>
+    <string name="widget_contagem_nome">Contagem de dias</string>
+    <string name="widget_contagem_descricao">Os dias que vocês estão juntos.</string>
+    <string name="widget_eventos_nome">Próximas datas</string>
+    <string name="widget_eventos_descricao">Os próximos compromissos do casal.</string>
+    <string name="widget_carta_nome">Cartinha</string>
+    <string name="widget_carta_descricao">Escreva uma cartinha para quem você ama.</string>
 </resources>

@@ -1,5 +1,6 @@
 package com.tamojunto.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,6 +20,7 @@ import com.google.firebase.auth.FirebaseUser
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        PedidosWidget.lerIntent(intent)
         setContent {
             TamoJuntoTema {
                 Surface(modifier = Modifier.fillMaxSize(), color = Color.Transparent) {
@@ -26,6 +28,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    // Com singleTop, o app já aberto recebe o pedido do widget por aqui.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        PedidosWidget.lerIntent(intent)
     }
 }
 

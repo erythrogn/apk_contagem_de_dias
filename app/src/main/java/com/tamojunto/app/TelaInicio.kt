@@ -837,7 +837,7 @@ private fun DialogoLerCartinha(carta: Cartinha, nomeDe: String, aoFechar: () -> 
 }
 
 @Composable
-private fun DialogoEscreverCartinha(nomeOutra: String, aoEnviar: (String) -> Unit, aoFechar: () -> Unit) {
+internal fun DialogoEscreverCartinha(nomeOutra: String, aoEnviar: (String) -> Unit, aoFechar: () -> Unit) {
     var texto by rememberSaveable { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = aoFechar,
