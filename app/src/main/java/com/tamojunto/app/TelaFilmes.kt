@@ -2,28 +2,26 @@ package com.tamojunto.app
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.runtime.key
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.util.lerp
-import kotlinx.coroutines.launch
-import kotlin.math.abs
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -32,46 +30,91 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import coil.compose.AsyncImage
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
+import kotlin.math.abs
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-// Filmes, séries e jogos. Cada seção tem a coleção no banco, os textos e os status do site.
 enum class Secao(
     val rotulo: String,
     val singular: String,
@@ -94,10 +137,21 @@ enum class Secao(
     )
 }
 
+private val FonteSerifaMidia = FontFamily(
+    Font(R.font.cormorant_garamond_regular, FontWeight.Normal),
+    Font(R.font.cormorant_garamond_italic, FontWeight.Normal, FontStyle.Italic),
+    Font(R.font.cormorant_garamond_semibold, FontWeight.SemiBold)
+)
+
+private val CartaoMidiaTopo = Color(0xFFFBF8EC)
+private val CartaoMidiaBase = Color(0xFFF3EFD9)
+private val BordaMidiaDourada = Color(0xFFD6BE7A)
+private val TintaMidiaAcento = Color(0xFF3F6FA6)
+private val AzulPillMidia = Color(0xFFC7DAEC)
+
 private fun generosDe(texto: String): List<String> =
     texto.split(',').map { it.trim() }.filter { it.isNotBlank() }
 
-// Filtro de status: "assistir" e "assistido" usam o campo watched; o resto usa o campo status.
 private fun Item.combinaStatus(filtro: String): Boolean = when (filtro) {
     "todos" -> true
     "assistir" -> !feito
@@ -111,32 +165,33 @@ private fun Secao.rotuloFeito(): String = when (this) {
     Secao.JOGOS -> "Zerado"
 }
 
-// Texto da situação de um item, como aparece na lista.
 private fun Secao.situacaoDe(item: Item): String = when (this) {
     Secao.FILMES -> if (item.feito) "Assistido" else "Para assistir"
     else -> statusOpcoes.firstOrNull { it.first == item.status }?.second.orEmpty()
 }
 
-// Campo de nota de cada pessoa (mesmo nome usado pelo site).
 private fun campoNota(slot: String?): String? = when (slot) {
     "pessoa1" -> "ratingPessoa1"
     "pessoa2" -> "ratingPessoa2"
     else -> null
 }
 
-// Notas do casal: a minha e a da outra pessoa.
 private fun notasDoCasal(item: Item, eu: String?): Pair<Int, Int> = when (eu) {
     "pessoa2" -> item.nota2 to item.nota1
     else -> item.nota1 to item.nota2
 }
 
-// Capa. Sem capa, mostra o título no papel do site.
 @Composable
 private fun CapaMidia(poster: String, titulo: String, modifier: Modifier = Modifier, cinza: Boolean = false) {
     Box(
         modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(Tinta.copy(alpha = 0.08f)),
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(CartaoMidiaTopo, CartaoMidiaBase)
+                )
+            )
+            .border(0.8.dp, BordaMidiaDourada.copy(alpha = 0.65f), RoundedCornerShape(10.dp)),
         contentAlignment = Alignment.Center
     ) {
         if (poster.isNotBlank()) {
@@ -148,29 +203,56 @@ private fun CapaMidia(poster: String, titulo: String, modifier: Modifier = Modif
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            Text(
-                titulo.ifBlank { "Sem capa" },
-                style = EstiloApoio,
-                color = TintaSuave,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(10.dp)
-            )
+            Column(
+                modifier = Modifier.padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(Ouro.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("✦", fontSize = 12.sp, color = Ocre)
+                }
+                Text(
+                    text = titulo.ifBlank { "Sem capa" },
+                    style = TextStyle(
+                        fontFamily = FonteSerifaMidia,
+                        fontStyle = FontStyle.Italic,
+                        fontSize = 15.sp
+                    ),
+                    color = TintaSuave,
+                    textAlign = TextAlign.Center,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
 
-// Tela de Filmes, Séries e Jogos: capas ou lista. Tocar num item abre a ficha, onde tudo se faz.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TelaFilmes(dados: DadosDoCasal) {
     val contexto = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+    val gridState = rememberLazyGridState()
+
     var secao by rememberSaveable { mutableStateOf(Secao.FILMES) }
     var statusEscolhido by rememberSaveable { mutableStateOf("todos") }
     var generoEscolhido by rememberSaveable { mutableStateOf("todos") }
     var modo by rememberSaveable { mutableStateOf("capas") }
+    var filtrosAbertos by rememberSaveable { mutableStateOf(false) }
     var novaAberta by rememberSaveable { mutableStateOf(false) }
     var chaveAberta by rememberSaveable { mutableStateOf<String?>(null) }
-    var nomesPessoas by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var nomesPessoas by remember { mutableStateOf>(emptyMap()) }
+
+    val fabExpandido by remember {
+        derivedStateOf { gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset < 60 }
+    }
 
     LaunchedEffect(dados.casalId) {
         if (dados.casalId != null) {
@@ -190,133 +272,499 @@ fun TelaFilmes(dados: DadosDoCasal) {
         Secao.SERIES -> dados.series.toList()
         Secao.JOGOS -> dados.jogos.toList()
     }
-    val generos = lista.flatMap { generosDe(it.genero) }.distinct().sorted()
-    val visiveis = lista.filter {
-        it.combinaStatus(statusEscolhido) &&
-            (generoEscolhido == "todos" || generoEscolhido in generosDe(it.genero))
+    val generos = remember(lista) { lista.flatMap { generosDe(it.genero) }.distinct().sorted() }
+    val visiveis = remember(lista, statusEscolhido, generoEscolhido) {
+        lista.filter {
+            it.combinaStatus(statusEscolhido) &&
+                (generoEscolhido == "todos" || generoEscolhido in generosDe(it.genero))
+        }
     }
     val feitos = lista.count { it.feito }
     val fracao = if (lista.isEmpty()) 0f else feitos.toFloat() / lista.size
-    // A barra de progresso desliza até o novo valor, em vez de pular.
     val fracaoAnimada by animateFloatAsState(
         targetValue = fracao,
-        animationSpec = tween(durationMillis = 700, easing = FastOutSlowInEasing),
-        label = "progresso"
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessLow),
+        label = "progressoMidia"
     )
     val aberto = chaveAberta?.let { chave -> lista.firstOrNull { it.chave == chave } }
+    val temFiltroAtivo = statusEscolhido != "todos" || generoEscolhido != "todos"
 
     fun trocarSecao(nova: Secao) {
-        secao = nova
-        statusEscolhido = "todos"
-        generoEscolhido = "todos"
-        chaveAberta = null
+        if (secao != nova) {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            secao = nova
+            statusEscolhido = "todos"
+            generoEscolhido = "todos"
+            chaveAberta = null
+        }
     }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(if (modo == "capas") 2 else 1),
-        modifier = Modifier.fillMaxSize().padding(12.dp).papelDoSite().padding(20.dp),
-        contentPadding = PaddingValues(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Papel)
     ) {
-        // Cabeçalho: seções, progresso, o botão de adicionar, a forma de ver e os filtros.
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(
-                Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Crossfade(targetState = secao, label = "titulo") { s ->
-                    Text("nossos ${s.plural}", style = EstiloTituloSecao, textAlign = TextAlign.Center)
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    Secao.entries.forEach { s ->
-                        AbaSite(texto = s.rotulo, ativa = secao == s, aoClicar = { trocarSecao(s) })
-                    }
-                }
-                Column(Modifier.fillMaxWidth()) {
-                    Text(
-                        "$feitos de ${lista.size} ${secao.rotuloFeitos}",
-                        style = EstiloRotulo,
-                        color = TintaSuave,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(3.dp).background(Tinta.copy(alpha = 0.12f))) {
-                        Box(Modifier.fillMaxWidth(fracaoAnimada).height(3.dp).background(Ouro))
-                    }
-                }
-                BotaoSite(
-                    texto = "Adicionar ${secao.singular}",
-                    aoClicar = { novaAberta = true },
-                    primario = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+        LazyVerticalGrid(
+            state = gridState,
+            columns = GridCells.Fixed(if (modo == "capas") 2 else 1),
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 96.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Cabeçalho editorial minimalista
+            item(span = { GridItemSpan(maxLineSpan) }, key = "header") {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    FiltroSite(texto = "Capas", ativo = modo == "capas", aoClicar = { modo = "capas" })
-                    FiltroSite(texto = "Lista", ativo = modo == "lista", aoClicar = { modo = "lista" })
-                    FiltroSite(texto = "Carrossel", ativo = modo == "destaque", aoClicar = { modo = "destaque" })
-                }
-                Text("Mostrar", style = EstiloRotulo, color = TintaSuave)
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    secao.statusOpcoes.forEach { (valor, rotulo) ->
-                        FiltroSite(texto = rotulo, ativo = statusEscolhido == valor, aoClicar = { statusEscolhido = valor })
-                    }
-                }
-                if (generos.isNotEmpty()) {
                     Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        FiltroSite(texto = "Todos os gêneros", ativo = generoEscolhido == "todos", aoClicar = { generoEscolhido = "todos" })
-                        generos.forEach { g ->
-                            FiltroSite(texto = g, ativo = generoEscolhido == g, aoClicar = { generoEscolhido = g })
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "NOSSA ESTANTE",
+                                style = TextStyle(
+                                    fontFamily = Sem,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 9.5.sp,
+                                    letterSpacing = 2.4.sp
+                                ),
+                                color = Ocre
+                            )
+                            AnimatedContent(
+                                targetState = secao,
+                                transitionSpec = {
+                                    fadeIn(tween(200)) togetherWith fadeOut(tween(150))
+                                },
+                                label = "tituloSecaoMidia"
+                            ) { s ->
+                                Row(verticalAlignment = Alignment.Bottom) {
+                                    Text(
+                                        text = "Nossos ",
+                                        style = TextStyle(
+                                            fontFamily = FonteSerifaMidia,
+                                            fontSize = 32.sp,
+                                            lineHeight = 36.sp
+                                        ),
+                                        color = Tinta
+                                    )
+                                    Text(
+                                        text = s.plural,
+                                        style = TextStyle(
+                                            fontFamily = FonteSerifaMidia,
+                                            fontStyle = FontStyle.Italic,
+                                            fontSize = 32.sp,
+                                            lineHeight = 36.sp
+                                        ),
+                                        color = TintaMidiaAcento
+                                    )
+                                }
+                            }
                         }
+
+                        // Pílula compacta de progresso
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = CartaoMidiaTopo,
+                            border = BorderStroke(1.dp, BordaMidiaDourada.copy(alpha = 0.7f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(if (lista.isNotEmpty() && feitos == lista.size) Ouro else TintaMidiaAcento)
+                                )
+                                Text(
+                                    text = "$feitos/${lista.size}",
+                                    style = TextStyle(
+                                        fontFamily = Sem,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 11.5.sp
+                                    ),
+                                    color = Tinta
+                                )
+                            }
+                        }
+                    }
+
+                    // Linha de progresso ultrafina
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .clip(CircleShape)
+                            .background(AzulPillMidia.copy(alpha = 0.45f))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(fracaoAnimada.coerceIn(0f, 1f))
+                                .fillMaxHeight()
+                                .clip(CircleShape)
+                                .background(Brush.horizontalGradient(listOf(TintaMidiaAcento, Ouro)))
+                        )
+                    }
+
+                    // Seletor segmentado de seção (Filmes | Séries | Jogos)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(CartaoMidiaTopo)
+                            .border(1.dp, BordaMidiaDourada.copy(alpha = 0.65f), RoundedCornerShape(999.dp))
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Secao.entries.forEach { s ->
+                            val ativa = secao == s
+                            val fundoTab by animateColorAsState(
+                                targetValue = if (ativa) Tinta else Color.Transparent,
+                                animationSpec = tween(220),
+                                label = "fundoTabSecao"
+                            )
+                            val corTextoTab by animateColorAsState(
+                                targetValue = if (ativa) Creme else TintaSuave,
+                                animationSpec = tween(220),
+                                label = "corTextoTabSecao"
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .background(fundoTab)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) { trocarSecao(s) }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = s.rotulo,
+                                    style = TextStyle(
+                                        fontFamily = Sem,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 12.sp
+                                    ),
+                                    color = corTextoTab
+                                )
+                            }
+                        }
+                    }
+
+                    // Toolbar minimalista: modos de visualização + botão de filtros recolhível
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf("capas" to "Capas", "lista" to "Lista", "destaque" to "Carrossel").forEach { (valor, rotulo) ->
+                                val ativo = modo == valor
+                                FilterChip(
+                                    selected = ativo,
+                                    onClick = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        modo = valor
+                                    },
+                                    shape = RoundedCornerShape(999.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        containerColor = CartaoMidiaTopo.copy(alpha = 0.8f),
+                                        labelColor = TintaSuave,
+                                        selectedContainerColor = TintaMidiaAcento,
+                                        selectedLabelColor = Creme
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = ativo,
+                                        borderColor = BordaMidiaDourada.copy(alpha = 0.6f),
+                                        selectedBorderColor = TintaMidiaAcento
+                                    ),
+                                    label = {
+                                        Text(
+                                            text = rotulo,
+                                            style = TextStyle(
+                                                fontFamily = Sem,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 11.5.sp
+                                            )
+                                        )
+                                    }
+                                )
+                            }
+                        }
+
+                        Surface(
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                filtrosAbertos = !filtrosAbertos
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (filtrosAbertos || temFiltroAtivo) Tinta else CartaoMidiaTopo,
+                            border = BorderStroke(
+                                1.dp,
+                                if (filtrosAbertos || temFiltroAtivo) Tinta else BordaMidiaDourada.copy(alpha = 0.65f)
+                            ),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                IconeFiltroMidia(
+                                    cor = if (filtrosAbertos || temFiltroAtivo) Creme else Tinta,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Gaveta animada de filtros de Status e Gênero
+                    AnimatedVisibility(
+                        visible = filtrosAbertos,
+                        enter = fadeIn(tween(200)) + expandVertically(spring(dampingRatio = 0.82f)),
+                        exit = fadeOut(tween(150)) + shrinkVertically(tween(180))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(CartaoMidiaTopo.copy(alpha = 0.92f))
+                                .border(1.dp, BordaMidiaDourada.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "SITUAÇÃO",
+                                style = TextStyle(
+                                    fontFamily = Sem,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 9.5.sp,
+                                    letterSpacing = 1.4.sp
+                                ),
+                                color = Ocre
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                secao.statusOpcoes.forEach { (valor, rotulo) ->
+                                    val ativo = statusEscolhido == valor
+                                    FilterChip(
+                                        selected = ativo,
+                                        onClick = { statusEscolhido = valor },
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            containerColor = Color.Transparent,
+                                            labelColor = TintaSuave,
+                                            selectedContainerColor = AzulPillMidia,
+                                            selectedLabelColor = Tinta
+                                        ),
+                                        label = {
+                                            Text(
+                                                text = rotulo,
+                                                style = TextStyle(fontFamily = Sem, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+
+                            if (generos.isNotEmpty()) {
+                                Text(
+                                    text = "GÊNERO",
+                                    style = TextStyle(
+                                        fontFamily = Sem,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 9.5.sp,
+                                        letterSpacing = 1.4.sp
+                                    ),
+                                    color = Ocre,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    FilterChip(
+                                        selected = generoEscolhido == "todos",
+                                        onClick = { generoEscolhido = "todos" },
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            containerColor = Color.Transparent,
+                                            labelColor = TintaSuave,
+                                            selectedContainerColor = AzulPillMidia,
+                                            selectedLabelColor = Tinta
+                                        ),
+                                        label = {
+                                            Text(
+                                                text = "Todos",
+                                                style = TextStyle(fontFamily = Sem, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                                            )
+                                        }
+                                    )
+                                    generos.forEach { g ->
+                                        val ativo = generoEscolhido == g
+                                        FilterChip(
+                                            selected = ativo,
+                                            onClick = { generoEscolhido = g },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                containerColor = Color.Transparent,
+                                                labelColor = TintaSuave,
+                                                selectedContainerColor = AzulPillMidia,
+                                                selectedLabelColor = Tinta
+                                            ),
+                                            label = {
+                                                Text(
+                                                    text = g,
+                                                    style = TextStyle(fontFamily = Sem, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (visiveis.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "vazio") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Brush.verticalGradient(listOf(CartaoMidiaTopo, CartaoMidiaBase)))
+                            .border(1.dp, BordaMidiaDourada.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
+                            .padding(vertical = 36.dp, horizontal = 20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = if (lista.isEmpty()) "Nenhum ${secao.singular} por aqui ainda." else "Nada encontrado nesse filtro.",
+                                style = TextStyle(
+                                    fontFamily = FonteSerifaMidia,
+                                    fontStyle = FontStyle.Italic,
+                                    fontSize = 18.sp
+                                ),
+                                color = TintaSuave,
+                                textAlign = TextAlign.Center
+                            )
+                            if (lista.isEmpty()) {
+                                Text(
+                                    text = "Toque no + para adicionar o primeiro",
+                                    style = TextStyle(fontFamily = Sem, fontSize = 11.5.sp),
+                                    color = Ocre
+                                )
+                            }
+                        }
+                    }
+                }
+            } else if (modo == "destaque") {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "carrossel") {
+                    key(secao, statusEscolhido, generoEscolhido) {
+                        DestaqueFilmes(
+                            visiveis = visiveis,
+                            secao = secao,
+                            aoAbrir = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                chaveAberta = it
+                            }
+                        )
+                    }
+                }
+            } else if (modo == "capas") {
+                items(visiveis, key = { it.chave }) { midia ->
+                    CartaoMidia(
+                        item = midia,
+                        rotuloFeito = secao.rotuloFeito(),
+                        aoAbrir = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            chaveAberta = midia.chave
+                        },
+                        modifier = Modifier.animateItem()
+                    )
+                }
+            } else {
+                visiveis.forEach { midia ->
+                    item(key = midia.chave, span = { GridItemSpan(maxLineSpan) }) {
+                        LinhaMidia(
+                            item = midia,
+                            situacao = secao.situacaoDe(midia),
+                            aoAbrir = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                chaveAberta = midia.chave
+                            },
+                            modifier = Modifier.animateItem()
+                        )
                     }
                 }
             }
         }
 
-        if (visiveis.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
+        // Botão flutuante (FAB) expansível
+        FloatingActionButton(
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                novaAberta = true
+            },
+            shape = RoundedCornerShape(999.dp),
+            containerColor = Tinta,
+            contentColor = Creme,
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(end = 20.dp, bottom = 18.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = if (fabExpandido) 18.dp else 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text(
-                    if (lista.isEmpty()) "Ainda não há ${secao.plural} na lista. Toque em Adicionar ${secao.singular}."
-                    else "Nada com este filtro.",
-                    style = EstiloApoio,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    text = "+",
+                    style = TextStyle(
+                        fontFamily = FonteSerifaMidia,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 24.sp
+                    ),
+                    color = Ouro
                 )
-            }
-        } else if (modo == "destaque") {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                // Trocar de filtro recria o carrossel, que volta ao primeiro item.
-                key(secao, statusEscolhido, generoEscolhido) {
-                    DestaqueFilmes(visiveis = visiveis, secao = secao, aoAbrir = { chaveAberta = it })
-                }
-            }
-        } else if (modo == "capas") {
-            items(visiveis, key = { it.chave }) { midia ->
-                CartaoMidia(
-                    item = midia,
-                    rotuloFeito = secao.rotuloFeito(),
-                    aoAbrir = { chaveAberta = midia.chave },
-                    modifier = Modifier.animateItem()
-                )
-            }
-        } else {
-            visiveis.forEach { midia ->
-                item(key = midia.chave, span = { GridItemSpan(maxLineSpan) }) {
-                    LinhaMidia(
-                        item = midia,
-                        situacao = secao.situacaoDe(midia),
-                        aoAbrir = { chaveAberta = midia.chave },
-                        modifier = Modifier.animateItem()
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = fabExpandido,
+                    enter = fadeIn(tween(180)) + expandVertically(),
+                    exit = fadeOut(tween(140)) + shrinkVertically()
+                ) {
+                    Text(
+                        text = secao.singular.replaceFirstChar { it.uppercase() },
+                        style = TextStyle(
+                            fontFamily = Sem,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.5.sp,
+                            letterSpacing = 0.4.sp
+                        ),
+                        color = Creme
                     )
                 }
             }
@@ -341,8 +789,21 @@ fun TelaFilmes(dados: DadosDoCasal) {
     }
 }
 
-// Carrossel de destaque, como no site: a capa do centro em tamanho cheio, as vizinhas menores
-// e esmaecidas. Desliza com o dedo, tem setas, contador, faixa de miniaturas e o título embaixo.
+@Composable
+private fun IconeFiltroMidia(cor: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val stroke = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round)
+        drawLine(cor, Offset(w * 0.15f, h * 0.32f), Offset(w * 0.85f, h * 0.32f), stroke.width, StrokeCap.Round)
+        drawLine(cor, Offset(w * 0.15f, h * 0.68f), Offset(w * 0.85f, h * 0.68f), stroke.width, StrokeCap.Round)
+        drawCircle(CartaoMidiaTopo, radius = 2.5.dp.toPx(), center = Offset(w * 0.38f, h * 0.32f))
+        drawCircle(cor, radius = 2.5.dp.toPx(), center = Offset(w * 0.38f, h * 0.32f), style = stroke)
+        drawCircle(CartaoMidiaTopo, radius = 2.5.dp.toPx(), center = Offset(w * 0.64f, h * 0.68f))
+        drawCircle(cor, radius = 2.5.dp.toPx(), center = Offset(w * 0.64f, h * 0.68f), style = stroke)
+    }
+}
+
 @Composable
 private fun DestaqueFilmes(visiveis: List<Item>, secao: Secao, aoAbrir: (String) -> Unit) {
     val total = visiveis.size
@@ -351,33 +812,39 @@ private fun DestaqueFilmes(visiveis: List<Item>, secao: Secao, aoAbrir: (String)
     val atual = pagerState.currentPage
     val listaMiniaturas = rememberLazyListState()
 
-    // A faixa de miniaturas acompanha o item do centro.
     LaunchedEffect(atual) { listaMiniaturas.animateScrollToItem(atual) }
 
-    // O progresso da barra desliza até a posição nova.
     val progresso by animateFloatAsState(
         targetValue = (atual + 1).toFloat() / total,
-        animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
         label = "progressoCarrossel"
     )
 
     Column(
-        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxWidth().height(430.dp),
-            contentPadding = PaddingValues(horizontal = 58.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(410.dp),
+            contentPadding = PaddingValues(horizontal = 54.dp),
             pageSpacing = 14.dp
         ) { pagina ->
             val midia = visiveis[pagina]
             Box(
-                Modifier
+                modifier = Modifier
                     .fillMaxSize()
-                    .shadow(elevation = 16.dp, shape = RoundedCornerShape(4.dp), ambientColor = Tinta, spotColor = Tinta)
-                    // Quanto mais perto do centro, maior e mais nítida. A escala é lida no desenho, sem recompor.
+                    .shadow(
+                        elevation = 16.dp,
+                        shape = RoundedCornerShape(12.dp),
+                        ambientColor = Tinta.copy(alpha = 0.2f),
+                        spotColor = Tinta.copy(alpha = 0.25f)
+                    )
                     .graphicsLayer {
                         val distancia = abs((pagerState.currentPage - pagina) + pagerState.currentPageOffsetFraction)
                         val proximidade = 1f - distancia.coerceIn(0f, 1f)
@@ -391,14 +858,17 @@ private fun DestaqueFilmes(visiveis: List<Item>, secao: Secao, aoAbrir: (String)
                     poster = midia.poster,
                     titulo = midia.titulo,
                     cinza = midia.feito,
-                    modifier = Modifier.fillMaxSize().border(1.dp, Ouro.copy(alpha = 0.8f), RoundedCornerShape(4.dp))
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .border(1.2.dp, BordaMidiaDourada, RoundedCornerShape(12.dp))
                 )
             }
         }
 
-        // Setas nas pontas e o contador no meio, com a barra de progresso embaixo.
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             BotaoSeta(
@@ -406,10 +876,28 @@ private fun DestaqueFilmes(visiveis: List<Item>, secao: Secao, aoAbrir: (String)
                 habilitado = atual > 0,
                 aoClicar = { escopo.launch { pagerState.animateScrollToPage(atual - 1) } }
             )
-            Column(Modifier.weight(1f).padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Text("${atual + 1} de $total", style = EstiloRotulo, color = TintaSuave)
-                Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(2.dp).background(Tinta.copy(alpha = 0.12f))) {
-                    Box(Modifier.fillMaxWidth(progresso).height(2.dp).background(Ouro))
+                Box(
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .fillMaxWidth()
+                        .height(2.5.dp)
+                        .clip(CircleShape)
+                        .background(Tinta.copy(alpha = 0.12f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progresso)
+                            .fillMaxHeight()
+                            .clip(CircleShape)
+                            .background(Ouro)
+                    )
                 }
             }
             BotaoSeta(
@@ -419,17 +907,23 @@ private fun DestaqueFilmes(visiveis: List<Item>, secao: Secao, aoAbrir: (String)
             )
         }
 
-        // Título e a ficha. Ao trocar de item, o texto dá uma leve transição.
         Crossfade(targetState = atual, label = "textoCarrossel") { pagina ->
             visiveis.getOrNull(pagina)?.let { midia ->
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        midia.titulo.ifBlank { "Sem título" },
-                        style = EstiloTituloSecao,
+                        text = midia.titulo.ifBlank { "Sem título" },
+                        style = TextStyle(
+                            fontFamily = FonteSerifaMidia,
+                            fontSize = 26.sp,
+                            lineHeight = 30.sp
+                        ),
+                        color = Tinta,
                         textAlign = TextAlign.Center,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
@@ -446,10 +940,9 @@ private fun DestaqueFilmes(visiveis: List<Item>, secao: Secao, aoAbrir: (String)
             }
         }
 
-        // Faixa de miniaturas: o item do centro fica destacado; tocar numa miniatura leva até ela.
         LazyRow(
             state = listaMiniaturas,
-            contentPadding = PaddingValues(horizontal = 20.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -465,14 +958,14 @@ private fun DestaqueFilmes(visiveis: List<Item>, secao: Secao, aoAbrir: (String)
                     titulo = midia.titulo,
                     cinza = midia.feito,
                     modifier = Modifier
-                        .width(54.dp)
+                        .width(52.dp)
                         .aspectRatio(2f / 3f)
                         .graphicsLayer {
                             scaleX = escala
                             scaleY = escala
-                            alpha = if (selecionada) 1f else 0.7f
+                            alpha = if (selecionada) 1f else 0.65f
                         }
-                        .then(if (selecionada) Modifier.border(2.dp, Ouro, RoundedCornerShape(4.dp)) else Modifier)
+                        .then(if (selecionada) Modifier.border(2.dp, Ouro, RoundedCornerShape(10.dp)) else Modifier)
                         .clickable { escopo.launch { pagerState.animateScrollToPage(indice) } }
                 )
             }
@@ -480,7 +973,6 @@ private fun DestaqueFilmes(visiveis: List<Item>, secao: Secao, aoAbrir: (String)
     }
 }
 
-// Seta redonda do carrossel: some para o tamanho do toque quando não há mais para onde ir.
 @Composable
 private fun BotaoSeta(caminho: String, habilitado: Boolean, aoClicar: () -> Unit) {
     val opacidade by animateFloatAsState(
@@ -488,27 +980,26 @@ private fun BotaoSeta(caminho: String, habilitado: Boolean, aoClicar: () -> Unit
         label = "opacidadeSeta"
     )
     Box(
-        Modifier
+        modifier = Modifier
             .size(44.dp)
             .graphicsLayer { alpha = opacidade }
-            .clip(RoundedCornerShape(4.dp))
-            .background(Papel)
-            .border(1.dp, Ouro, RoundedCornerShape(4.dp))
+            .clip(CircleShape)
+            .background(CartaoMidiaTopo)
+            .border(1.dp, BordaMidiaDourada, CircleShape)
             .clickable(enabled = habilitado, onClick = aoClicar),
         contentAlignment = Alignment.Center
     ) {
-        IconeLinha(caminhos = listOf(caminho), tamanho = 20.dp, cor = Tinta)
+        IconeLinha(caminhos = listOf(caminho), tamanho = 19.dp, cor = Tinta)
     }
 }
 
-// Escala suave ao toque: a capa encolhe um pouco enquanto o dedo está sobre ela.
 @Composable
 private fun Modifier.toqueSuave(fonte: MutableInteractionSource): Modifier {
     val pressionado by fonte.collectIsPressedAsState()
     val escala by animateFloatAsState(
-        targetValue = if (pressionado) 0.96f else 1f,
+        targetValue = if (pressionado) 0.965f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
-        label = "toque"
+        label = "toqueMidia"
     )
     return this.graphicsLayer {
         scaleX = escala
@@ -516,27 +1007,33 @@ private fun Modifier.toqueSuave(fonte: MutableInteractionSource): Modifier {
     }
 }
 
-// Uma capa na grade: a imagem, o selo de "feito" (surge com animação) e o título embaixo.
 @Composable
 private fun CartaoMidia(item: Item, rotuloFeito: String, aoAbrir: () -> Unit, modifier: Modifier = Modifier) {
     val fonte = remember { MutableInteractionSource() }
     Column(
-        modifier
+        modifier = modifier
             .fillMaxWidth()
             .toqueSuave(fonte)
+            .clip(RoundedCornerShape(12.dp))
+            .background(CartaoMidiaTopo)
+            .border(0.8.dp, BordaMidiaDourada.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
             .clickable(interactionSource = fonte, indication = null, onClick = aoAbrir)
+            .padding(8.dp)
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+        ) {
             CapaMidia(poster = item.poster, titulo = item.titulo, modifier = Modifier.fillMaxSize())
-            // O selo cresce com um pequeno salto quando o item vira "feito" e encolhe ao desmarcar.
             val escalaSelo by animateFloatAsState(
                 targetValue = if (item.feito) 1f else 0f,
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
-                label = "selo"
+                label = "seloMidia"
             )
             if (escalaSelo > 0.01f) {
                 Box(
-                    Modifier
+                    modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(6.dp)
                         .graphicsLayer {
@@ -544,61 +1041,114 @@ private fun CartaoMidia(item: Item, rotuloFeito: String, aoAbrir: () -> Unit, mo
                             scaleY = escalaSelo
                             alpha = escalaSelo.coerceIn(0f, 1f)
                         }
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(999.dp))
                         .background(Ouro)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
-                    Text(rotuloFeito, style = EstiloRotulo, color = Tinta)
+                    Text(
+                        text = rotuloFeito,
+                        style = TextStyle(fontFamily = Sem, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp),
+                        color = Tinta
+                    )
                 }
             }
         }
         Text(
-            item.titulo.ifBlank { "Sem título" },
-            style = EstiloApoio,
+            text = item.titulo.ifBlank { "Sem título" },
+            style = TextStyle(fontFamily = FonteSerifaMidia, fontSize = 18.sp),
             color = Tinta,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp)
+            modifier = Modifier.padding(top = 8.dp, start = 2.dp, end = 2.dp)
         )
-        val meta = listOf(item.ano, item.genero).filter { it.isNotBlank() }.joinToString(" · ")
-        if (meta.isNotBlank()) {
-            Text(meta, style = EstiloRotulo, color = TintaSuave, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp, start = 2.dp, end = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val meta = listOf(item.ano, item.genero).filter { it.isNotBlank() }.joinToString(" · ")
+            Text(
+                text = meta.ifBlank { " " },
+                style = EstiloRotulo,
+                color = TintaSuave,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (item.nota1 > 0 || item.nota2 > 0) {
+                val maior = maxOf(item.nota1, item.nota2)
+                Text(
+                    text = "★ $maior",
+                    style = TextStyle(fontFamily = Sem, fontWeight = FontWeight.SemiBold, fontSize = 10.sp),
+                    color = Ocre,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
         }
     }
 }
 
-// Uma linha da lista: miniatura, título, ano e gênero, e a situação à direita.
 @Composable
 private fun LinhaMidia(item: Item, situacao: String, aoAbrir: () -> Unit, modifier: Modifier = Modifier) {
     val fonte = remember { MutableInteractionSource() }
     Row(
-        modifier
+        modifier = modifier
             .fillMaxWidth()
             .toqueSuave(fonte)
+            .clip(RoundedCornerShape(12.dp))
+            .background(CartaoMidiaTopo)
+            .border(0.8.dp, BordaMidiaDourada.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
             .clickable(interactionSource = fonte, indication = null, onClick = aoAbrir)
-            .padding(vertical = 4.dp),
+            .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        CapaMidia(poster = item.poster, titulo = item.titulo, modifier = Modifier.width(52.dp).aspectRatio(2f / 3f))
-        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+        CapaMidia(
+            poster = item.poster,
+            titulo = item.titulo,
+            modifier = Modifier
+                .width(50.dp)
+                .aspectRatio(2f / 3f)
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp)
+        ) {
             Text(
-                item.titulo.ifBlank { "Sem título" },
-                style = EstiloApoio,
+                text = item.titulo.ifBlank { "Sem título" },
+                style = TextStyle(fontFamily = FonteSerifaMidia, fontSize = 19.sp),
                 color = Tinta,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             val meta = listOf(item.ano, item.genero).filter { it.isNotBlank() }.joinToString(" · ")
             if (meta.isNotBlank()) {
-                Text(meta, style = EstiloRotulo, color = TintaSuave, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text = meta,
+                    style = EstiloRotulo,
+                    color = TintaSuave,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
             }
         }
-        Text(situacao, style = EstiloRotulo, color = if (item.feito) Ocre else TintaSuave, textAlign = TextAlign.End)
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = if (item.feito) Ouro.copy(alpha = 0.25f) else AzulPillMidia.copy(alpha = 0.45f)
+        ) {
+            Text(
+                text = situacao,
+                style = TextStyle(fontFamily = Sem, fontWeight = FontWeight.SemiBold, fontSize = 10.sp),
+                color = if (item.feito) Ocre else Tinta,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+            )
+        }
     }
 }
 
-// Ficha do item em painel inferior. Tudo o que se faz com um item está aqui, com nome claro:
-// situação, notas, onde assistir, trailer e apagar.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PainelMidia(
@@ -612,12 +1162,14 @@ private fun PainelMidia(
     aoFechar: () -> Unit
 ) {
     val estado = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val haptics = LocalHapticFeedback.current
     var onde by remember(item.chave) { mutableStateOf(item.onde) }
     var confirmarApagar by remember { mutableStateOf(false) }
     val (minha, dela) = notasDoCasal(item, eu)
     val statusAtual = if (secao == Secao.FILMES) (if (item.feito) "assistido" else "assistir") else item.status
 
     fun mudarStatus(valor: String) {
+        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         if (secao == Secao.FILMES) {
             dados.atualizarItem("filmes", item.chave, mapOf("watched" to (valor == "assistido")), item.titulo) {}
         } else {
@@ -627,21 +1179,41 @@ private fun PainelMidia(
 
     fun salvarNota(nota: Int) {
         val campo = campoNota(eu) ?: return
+        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         dados.atualizarItem(secao.colecao, item.chave, mapOf(campo to nota), item.titulo) {}
     }
 
-    ModalBottomSheet(onDismissRequest = aoFechar, sheetState = estado) {
+    ModalBottomSheet(
+        onDismissRequest = aoFechar,
+        sheetState = estado,
+        containerColor = CartaoMidiaTopo,
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
+    ) {
         Column(
-            Modifier
+            modifier = Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
+                .padding(bottom = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            CapaMidia(poster = item.poster, titulo = item.titulo, modifier = Modifier.width(170.dp).aspectRatio(2f / 3f))
-            Text(item.titulo.ifBlank { "Sem título" }, style = EstiloTituloSecao, textAlign = TextAlign.Center)
+            CapaMidia(
+                poster = item.poster,
+                titulo = item.titulo,
+                modifier = Modifier
+                    .width(156.dp)
+                    .aspectRatio(2f / 3f)
+                    .shadow(10.dp, RoundedCornerShape(10.dp))
+            )
+            Text(
+                text = item.titulo.ifBlank { "Sem título" },
+                style = TextStyle(fontFamily = FonteSerifaMidia, fontSize = 28.sp, lineHeight = 32.sp),
+                color = Tinta,
+                textAlign = TextAlign.Center
+            )
             val meta = listOf(item.ano, item.genero, item.quando).filter { it.isNotBlank() }
             if (meta.isNotEmpty()) {
                 Text(meta.joinToString(" · "), style = EstiloRotulo, color = TintaSuave, textAlign = TextAlign.Center)
@@ -657,16 +1229,22 @@ private fun PainelMidia(
                 Text("Elenco: ${item.elenco}", style = EstiloApoio, textAlign = TextAlign.Center)
             }
             if (item.quem.isNotBlank()) {
-                Text("Indicado por ${item.quem}", style = EstiloRotulo, color = TintaSuave)
+                Text("Indicado por ${item.quem}", style = EstiloRotulo, color = Ocre)
             }
             if (secao == Secao.JOGOS && item.plataforma.isNotBlank()) {
                 Text("Plataforma: ${item.plataforma}", style = EstiloRotulo, color = TintaSuave)
             }
 
-            // Situação: um toque troca. O item marcado fica destacado.
-            Text("Situação", style = EstiloTituloSecao, color = Tinta)
+            Text(
+                text = "SITUAÇÃO",
+                style = TextStyle(fontFamily = Sem, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 1.6.sp),
+                color = Ocre,
+                modifier = Modifier.padding(top = 4.dp)
+            )
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 secao.statusOpcoes.drop(1).forEach { (valor, rotulo) ->
@@ -674,26 +1252,44 @@ private fun PainelMidia(
                 }
             }
 
-            // Notas: cada pessoa dá a sua.
-            Text("Notas", style = EstiloTituloSecao, color = Tinta)
+            Text(
+                text = "NOTAS DO CASAL",
+                style = TextStyle(fontFamily = Sem, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 1.6.sp),
+                color = Ocre,
+                modifier = Modifier.padding(top = 4.dp)
+            )
             if (eu == null) {
                 Text("Entre no casal para dar sua nota.", style = EstiloRotulo, color = TintaSuave, textAlign = TextAlign.Center)
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(nomeEu, style = EstiloRotulo, color = Tinta, modifier = Modifier.width(90.dp))
-                Estrelas(valor = minha, aoMudar = if (eu != null) ({ nota: Int -> salvarNota(nota) }) else null, tamanho = 26.dp)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(nomeOutra, style = EstiloRotulo, color = Tinta, modifier = Modifier.width(90.dp))
-                Estrelas(valor = dela, tamanho = 26.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CartaoMidiaBase.copy(alpha = 0.7f))
+                    .border(0.8.dp, BordaMidiaDourada.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(nomeEu, style = EstiloRotulo, color = Tinta, modifier = Modifier.width(96.dp))
+                    Estrelas(valor = minha, aoMudar = if (eu != null) ({ nota: Int -> salvarNota(nota) }) else null, tamanho = 26.dp)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(nomeOutra, style = EstiloRotulo, color = Tinta, modifier = Modifier.width(96.dp))
+                    Estrelas(valor = dela, tamanho = 26.dp)
+                }
             }
 
-            // Onde assistir: salvo só quando a pessoa aperta o botão.
             OutlinedTextField(
                 value = onde,
                 onValueChange = { onde = it },
                 label = { Text("Onde assistir ou jogar") },
                 singleLine = true,
+                shape = RoundedCornerShape(10.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = TintaMidiaAcento,
+                    unfocusedBorderColor = BordaMidiaDourada
+                ),
                 modifier = Modifier.fillMaxWidth()
             )
             BotaoSite(
@@ -730,7 +1326,6 @@ private fun PainelMidia(
     }
 }
 
-// Cadastro de um item. A capa e a ficha são buscadas enquanto a pessoa digita o título.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FormularioNovaMidia(secao: Secao, dados: DadosDoCasal, aoFechar: () -> Unit) {
@@ -746,7 +1341,6 @@ private fun FormularioNovaMidia(secao: Secao, dados: DadosDoCasal, aoFechar: () 
     var buscando by remember { mutableStateOf(false) }
     val dataValida = quando.isBlank() || Regex("\\d{4}-\\d{2}-\\d{2}").matches(quando.trim())
 
-    // Busca automática da capa: espera a pessoa parar de digitar.
     LaunchedEffect(titulo, ano, secao) {
         ficha = null
         if (titulo.trim().length >= 2) {
@@ -761,21 +1355,35 @@ private fun FormularioNovaMidia(secao: Secao, dados: DadosDoCasal, aoFechar: () 
         }
     }
 
-    ModalBottomSheet(onDismissRequest = aoFechar, sheetState = estado) {
+    ModalBottomSheet(
+        onDismissRequest = aoFechar,
+        sheetState = estado,
+        containerColor = CartaoMidiaTopo,
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
+    ) {
         Column(
-            Modifier
+            modifier = Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
+                .padding(bottom = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text("Novo ${secao.singular}", style = EstiloTituloSecao, textAlign = TextAlign.Center)
+            Text(
+                text = "Novo ${secao.singular}",
+                style = TextStyle(fontFamily = FonteSerifaMidia, fontSize = 26.sp),
+                color = Tinta,
+                textAlign = TextAlign.Center
+            )
             CapaMidia(
                 poster = ficha?.poster.orEmpty(),
                 titulo = titulo,
-                modifier = Modifier.width(130.dp).aspectRatio(2f / 3f)
+                modifier = Modifier
+                    .width(124.dp)
+                    .aspectRatio(2f / 3f)
             )
             if (buscando) {
                 Text("Procurando a capa…", style = EstiloRotulo, color = TintaSuave)
@@ -783,10 +1391,69 @@ private fun FormularioNovaMidia(secao: Secao, dados: DadosDoCasal, aoFechar: () 
                 Text("Capa não encontrada. Você pode salvar mesmo assim.", style = EstiloRotulo, color = TintaSuave, textAlign = TextAlign.Center)
             }
 
-            OutlinedTextField(value = titulo, onValueChange = { titulo = it }, label = { Text("Título") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = ano, onValueChange = { ano = it }, label = { Text("Ano (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = genero, onValueChange = { genero = it }, label = { Text("Gênero (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = indicado, onValueChange = { indicado = it }, label = { Text("Quem indicou (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(
+                value = titulo,
+                onValueChange = { titulo = it },
+                label = { Text("Título") },
+                singleLine = true,
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = ano,
+                    onValueChange = { ano = it },
+                    label = { Text("Ano") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(0.38f)
+                )
+                OutlinedTextField(
+                    value = genero,
+                    onValueChange = { genero = it },
+                    label = { Text("Gênero (opcional)") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(0.62f)
+                )
+            }
+            OutlinedTextField(
+                value = indicado,
+                onValueChange = { indicado = it },
+                label = { Text("Quem indicou (opcional)") },
+                singleLine = true,
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Atalhos rápidos de data para mobile
+            val hoje = remember { LocalDate.now(FUSO_BELEM) }
+            val atalhosData = remember(hoje) {
+                listOf(
+                    "Hoje" to hoje.toString(),
+                    "Amanhã" to hoje.plusDays(1).toString(),
+                    "Sábado" to hoje.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY)).toString(),
+                    "Sem data" to ""
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                atalhosData.forEach { (rotulo, iso) ->
+                    FilterChip(
+                        selected = quando.trim() == iso,
+                        onClick = { quando = iso },
+                        label = { Text(rotulo, fontSize = 11.sp) }
+                    )
+                }
+            }
+
             OutlinedTextField(
                 value = quando,
                 onValueChange = { quando = it },
@@ -795,15 +1462,25 @@ private fun FormularioNovaMidia(secao: Secao, dados: DadosDoCasal, aoFechar: () 
                 singleLine = true,
                 isError = !dataValida,
                 supportingText = { if (!dataValida) Text("Use o formato AAAA-MM-DD") },
+                shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.fillMaxWidth()
             )
             if (secao == Secao.JOGOS) {
-                OutlinedTextField(value = plataforma, onValueChange = { plataforma = it }, label = { Text("Plataforma (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = plataforma,
+                    onValueChange = { plataforma = it },
+                    label = { Text("Plataforma (opcional)") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
             if (secao != Secao.FILMES) {
                 Text("Situação", style = EstiloRotulo, color = TintaSuave)
                 Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     secao.statusOpcoes.drop(1).forEach { (valor, rotulo) ->
