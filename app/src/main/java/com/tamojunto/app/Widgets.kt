@@ -17,7 +17,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.core.content.res.ResourcesCompat
 import androidx.glance.GlanceId
@@ -39,6 +38,7 @@ import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
+import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
@@ -52,14 +52,10 @@ import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
-
-// ---- Widgets da tela inicial ----
-// Cada widget é uma tela desenhada no estilo do site (papel, azul-tinta, dourado, Cormorant e Montserrat),
-// com áreas de toque por cima. Os dados vêm de uma cópia gravada pelo app, então funcionam com o app fechado.
-// Limite do Android: widget não roda animação contínua; o conteúdo muda no toque e nas atualizações.
 
 data class EventoWidget(val titulo: String, val data: String, val tipo: String)
 
@@ -82,14 +78,28 @@ private const val CHAVE_SLOT = "slot"
 private const val CHAVE_STATUS = "status_carta"
 private const val CHAVE_STATUS_EM = "status_carta_em"
 
-// Frases prontas da cartinha: um toque envia, sem abrir o app.
+private val FundoContagemPastel = Color(0xFFF5EBD4)
+private val FundoEventosPastel = Color(0xFFFAF6EE)
+private val FundoCartaPastel = Color(0xFFE1ECF7)
+private val CartaoCartaPastel = Color(0xB3FFFFFF)
+private val BotaoOuroPastel = Color(0xFFF3E4C2)
+private val BotaoAzulSuavePastel = Color(0xFFCCDCF0)
+private val BotaoAtivoPastel = Color(0xFF5D7694)
+private val BotaoInativoPastel = Color(0xFFFDFBF6)
+private val BordaOuroPastel = Color(0xFFD8C292)
+private val BordaAzulPastel = Color(0xFFAABFD8)
+private val TintaPastel = Color(0xFF364A63)
+private val TintaSuavePastel = Color(0xFF667990)
+private val CremePastel = Color(0xFFFAF7F0)
+private val OcrePastel = Color(0xFF967342)
+private val SeloMesPastel = Color(0xFFF5E7C6)
+
 private val MENSAGENS_RAPIDAS = listOf("Pensando em você", "Saudade de você", "Te amo", "Boa noite")
 
 private val ChaveAcao = ActionParameters.Key<String>("acao")
 private val ChaveUnidade = ActionParameters.Key<String>("unidade")
 private val ChaveTextoCarta = ActionParameters.Key<String>("texto")
 
-// Quem pediu uma cartinha pelo app (ou pelo widget, para escrever com calma): o app abre o formulário.
 object PedidosWidget {
     var cartaPendente by mutableStateOf(false)
 
@@ -113,7 +123,6 @@ fun salvarDadosWidget(contexto: Context, dados: DadosWidget) {
         .put("cartasNovas", dados.cartasNovas)
         .put("ultimaTexto", dados.ultimaTexto)
         .put("ultimaDe", dados.ultimaDe)
-    // Casal e slot ficam à parte, para o envio de cartinha funcionar sem o app aberto.
     prefsWidgets(contexto).edit()
         .putString(CHAVE_WIDGETS, json.toString())
         .putString(CHAVE_CASAL, dados.casal ?: "")
@@ -147,7 +156,6 @@ fun lerDadosWidget(contexto: Context): DadosWidget {
 private fun lerUnidadeWidget(contexto: Context): String =
     prefsWidgets(contexto).getString(CHAVE_UNIDADE, "dias") ?: "dias"
 
-// Monta o que os widgets mostram a partir do que está no app. A regra de "Próximas datas" é a mesma da tela inicial.
 fun montarDadosWidget(dados: DadosDoCasal, nomes: Map<String, String>): DadosWidget {
     val eu = dados.meuSlot ?: "pessoa1"
     val outra = if (eu == "pessoa1") "pessoa2" else "pessoa1"
@@ -179,7 +187,6 @@ fun montarDadosWidget(dados: DadosDoCasal, nomes: Map<String, String>): DadosWid
     )
 }
 
-// Grava a cópia e pede que os três widgets se redesenhem.
 suspend fun atualizarWidgets(contexto: Context, dados: DadosWidget) {
     salvarDadosWidget(contexto, dados)
     ContagemWidget().updateAll(contexto)
@@ -187,16 +194,12 @@ suspend fun atualizarWidgets(contexto: Context, dados: DadosWidget) {
     CartaWidget().updateAll(contexto)
 }
 
-// Abre o app. Com carta = true, o formulário de cartinha abre sozinho.
 private fun abrirApp(contexto: Context, carta: Boolean = false): Action =
     actionStartActivity(
         ComponentName(contexto, MainActivity::class.java),
         if (carta) actionParametersOf(ChaveAcao to "carta") else actionParametersOf()
     )
 
-// ---- Ações dos widgets ----
-
-// Toque na contagem em célula pequena: dias, meses, anos e de volta a dias.
 class CiclarUnidadeCallback : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val proxima = when (lerUnidadeWidget(context)) {
@@ -209,7 +212,6 @@ class CiclarUnidadeCallback : ActionCallback {
     }
 }
 
-// Toque numa das unidades (dias, meses, anos) na contagem grande.
 class SetarUnidadeCallback : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val unidade = parameters[ChaveUnidade] ?: return
@@ -218,7 +220,6 @@ class SetarUnidadeCallback : ActionCallback {
     }
 }
 
-// Toque numa frase pronta: envia a cartinha direto para a outra pessoa.
 class EnviarCartaCallback : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val texto = parameters[ChaveTextoCarta] ?: return
@@ -246,15 +247,14 @@ class EnviarCartaCallback : ActionCallback {
     }
 }
 
-// ---- Desenho ----
-
-// Área de toque em unidades de dp, relativa ao canto superior esquerdo do widget.
 class ZonaToque(val x: Float, val y: Float, val w: Float, val h: Float, val acao: Action)
 
-// Tela de um widget: o bitmap desenhado e as áreas de toque. Coordenadas em dp; o bitmap usa escala até 2x
-// para ficar leve o bastante para o Android transferir ao launcher.
 private class Tela(val contexto: Context, val largura: Float, val altura: Float) {
-    private val escala = min(contexto.resources.displayMetrics.density, 2f)
+    private val escala = run {
+        val densidade = min(contexto.resources.displayMetrics.density, 2f)
+        val area = max(1f, largura * altura)
+        min(densidade, sqrt(350_000f / area)).coerceAtLeast(0.75f)
+    }
     val bitmap: Bitmap = Bitmap.createBitmap(
         max(1, (largura * escala).toInt()),
         max(1, (altura * escala).toInt()),
@@ -264,22 +264,25 @@ private class Tela(val contexto: Context, val largura: Float, val altura: Float)
     val zonas = mutableListOf<ZonaToque>()
 
     fun zona(x: Float, y: Float, w: Float, h: Float, acao: Action) {
-        zonas.add(ZonaToque(x, y, w, h, acao))
+        if (w <= 0f || h <= 0f) return
+        zonas.add(ZonaToque(x.coerceAtLeast(0f), y.coerceAtLeast(0f), w, h, acao))
     }
 
     fun retangulo(x: Float, y: Float, w: Float, h: Float, raio: Float, cor: Color, contorno: Boolean = false, espessura: Float = 1f) {
+        if (w <= 0f || h <= 0f) return
         val pincel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = cor.toArgb()
             style = if (contorno) Paint.Style.STROKE else Paint.Style.FILL
             strokeWidth = espessura
         }
-        canvas.drawRoundRect(RectF(x, y, x + w, y + h), raio, raio, pincel)
+        val r = min(raio, min(w, h) / 2f)
+        canvas.drawRoundRect(RectF(x, y, x + w, y + h), r, r, pincel)
     }
 
-    // Moldura dupla, como o cartão do site.
     fun moldura(cor: Color) {
-        retangulo(5f, 5f, largura - 10f, altura - 10f, 18f, cor, contorno = true, espessura = 1f)
-        retangulo(9f, 9f, largura - 18f, altura - 18f, 14f, cor.copy(alpha = 0.45f), contorno = true, espessura = 0.6f)
+        val raioBase = min(20f, min(largura, altura) * 0.2f)
+        retangulo(5f, 5f, largura - 10f, altura - 10f, max(4f, raioBase - 2f), cor, contorno = true, espessura = 1f)
+        retangulo(9f, 9f, largura - 18f, altura - 18f, max(2f, raioBase - 6f), cor.copy(alpha = 0.45f), contorno = true, espessura = 0.6f)
     }
 
     fun fonte(cor: Color, fonteRes: Int, tamanho: Float): TextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -288,7 +291,25 @@ private class Tela(val contexto: Context, val largura: Float, val altura: Float)
         typeface = ResourcesCompat.getFont(contexto, fonteRes) ?: Typeface.DEFAULT
     }
 
-    // Desenha um texto cortado com reticências se passar do espaço. Devolve a largura usada.
+    fun fonteAjustada(
+        t: String,
+        cor: Color,
+        fonteRes: Int,
+        tamanhoMax: Float,
+        tamanhoMin: Float,
+        maxLargura: Float
+    ): TextPaint {
+        val pincel = fonte(cor, fonteRes, tamanhoMax)
+        val medido = pincel.measureText(t)
+        if (medido > maxLargura && maxLargura > 0f) {
+            pincel.textSize = max(tamanhoMin, tamanhoMax * (maxLargura / medido))
+        }
+        return pincel
+    }
+
+    fun baselineCentro(centroY: Float, pincel: TextPaint): Float =
+        centroY - (pincel.ascent() + pincel.descent()) / 2f
+
     fun texto(t: String, x: Float, y: Float, pincel: TextPaint, maxLargura: Float, alinha: Paint.Align = Paint.Align.LEFT): Float {
         pincel.textAlign = alinha
         val cortado = TextUtils.ellipsize(t, pincel, max(1f, maxLargura), TextUtils.TruncateAt.END).toString()
@@ -296,21 +317,22 @@ private class Tela(val contexto: Context, val largura: Float, val altura: Float)
         return pincel.measureText(cortado)
     }
 
-    fun icone(res: Int, x: Float, y: Float, w: Float, h: Float) {
-        ResourcesCompat.getDrawable(contexto.resources, res, null)?.let { desenho ->
+    fun icone(res: Int, x: Float, y: Float, w: Float, h: Float, cor: Color? = null) {
+        ResourcesCompat.getDrawable(contexto.resources, res, null)?.mutate()?.let { desenho ->
+            if (cor != null) desenho.setTint(cor.toArgb())
             desenho.setBounds(x.toInt(), y.toInt(), (x + w).toInt(), (y + h).toInt())
             desenho.draw(canvas)
         }
     }
 }
 
-// Corpo do widget: a imagem desenhada e, por cima, as áreas que respondem ao toque.
 @Composable
 private fun TelaWidget(tela: Tela, descricao: String) {
     Box(modifier = GlanceModifier.fillMaxSize()) {
         Image(
             provider = ImageProvider(tela.bitmap),
             contentDescription = descricao,
+            contentScale = ContentScale.FillBounds,
             modifier = GlanceModifier.fillMaxSize()
         )
         tela.zonas.forEach { zona ->
@@ -330,20 +352,21 @@ private fun TelaWidget(tela: Tela, descricao: String) {
     }
 }
 
-// ---- 1. Contagem de dias ----
-
 private val UNIDADES = listOf("dias" to "dias", "meses" to "meses", "anos" to "anos")
 
-// Três botões de unidade. O escolhido fica em azul-tinta; os outros, em papel.
 private fun Tela.botoesUnidade(y: Float, altura: Float, unidadeAtual: String, larguraTotal: Float, x0: Float) {
     val espaco = 6f
     val largura = (larguraTotal - espaco * (UNIDADES.size - 1)) / UNIDADES.size
+    val tamFonte = (altura * 0.36f).coerceIn(9.5f, 11f)
     UNIDADES.forEachIndexed { i, (chave, rotulo) ->
         val x = x0 + i * (largura + espaco)
         val ativa = chave == unidadeAtual
-        retangulo(x, y, largura, altura, 9f, if (ativa) Tinta else Papel)
-        val pincel = fonte(if (ativa) Creme else Tinta, R.font.montserrat_semibold, 10.5f)
-        texto(rotulo, x + largura / 2, y + altura / 2 + 3.5f, pincel, largura - 4f, Paint.Align.CENTER)
+        retangulo(x, y, largura, altura, 9f, if (ativa) BotaoAtivoPastel else BotaoInativoPastel)
+        if (!ativa) {
+            retangulo(x, y, largura, altura, 9f, BordaOuroPastel.copy(alpha = 0.7f), contorno = true, espessura = 0.7f)
+        }
+        val pincel = fonte(if (ativa) CremePastel else TintaPastel, R.font.montserrat_semibold, tamFonte)
+        texto(rotulo, x + largura / 2f, baselineCentro(y + altura / 2f, pincel), pincel, largura - 6f, Paint.Align.CENTER)
         zona(x, y, largura, altura, actionRunCallback<SetarUnidadeCallback>(actionParametersOf(ChaveUnidade to chave)))
     }
 }
@@ -357,42 +380,130 @@ private fun desenharContagem(tela: Tela, dados: DadosWidget, unidade: String, co
     val desde = dados.inicio?.let { "desde ${dataBr(it)}" } ?: "Defina a data do namoro no site"
     val composicao = contagem?.composicao.orEmpty()
     val abrir = abrirApp(tela.contexto)
+    val raioFundo = min(22f, min(largura, altura) * 0.22f)
 
-    tela.retangulo(0f, 0f, largura, altura, 22f, Ouro)
-    tela.moldura(Tinta)
+    tela.retangulo(0f, 0f, largura, altura, raioFundo, FundoContagemPastel)
+    tela.moldura(BordaOuroPastel)
 
     when {
-        // Cartão completo: data, número grande, palavra, composição e as três unidades.
-        largura >= 240f && altura >= 240f -> {
-            tela.texto(desde, largura / 2, 50f, tela.fonte(Tinta, R.font.cormorant_garamond_italic, 17f), largura - 40f, Paint.Align.CENTER)
-            tela.texto(numero, largura / 2, 152f, tela.fonte(Tinta, R.font.cormorant_garamond_semibold, 98f), largura - 40f, Paint.Align.CENTER)
-            tela.texto("$palavra juntos", largura / 2, 188f, tela.fonte(Tinta, R.font.cormorant_garamond_regular, 24f), largura - 40f, Paint.Align.CENTER)
-            tela.texto(composicao, largura / 2, 212f, tela.fonte(TintaSuave, R.font.montserrat_light, 11f), largura - 40f, Paint.Align.CENTER)
-            tela.zona(0f, 0f, largura, altura - 80f, abrir)
-            tela.botoesUnidade(altura - 58f, 32f, unidade, largura - 36f, 18f)
+        largura >= 210f && altura >= 200f -> {
+            val pad = 18f
+            val btnH = (altura * 0.12f).coerceIn(26f, 34f)
+            val btnY = altura - pad - btnH
+            val areaTopo = pad + 4f
+            val areaBase = btnY - 10f
+            val maxTexto = largura - pad * 2f - 8f
+
+            val pDesde = tela.fonte(TintaSuavePastel, R.font.cormorant_garamond_italic, (altura * 0.065f).coerceIn(13f, 17f))
+            val yDesde = areaTopo + (-pDesde.ascent())
+            tela.texto(desde, largura / 2f, yDesde, pDesde, maxTexto, Paint.Align.CENTER)
+
+            val temComp = composicao.isNotBlank()
+            val pComp = tela.fonte(TintaSuavePastel, R.font.montserrat_light, (altura * 0.042f).coerceIn(9.5f, 11.5f))
+            val yComp = areaBase - pComp.descent()
+            if (temComp) {
+                tela.texto(composicao, largura / 2f, yComp, pComp, maxTexto, Paint.Align.CENTER)
+            }
+
+            val meioTopo = yDesde + pDesde.descent() + 6f
+            val meioBase = if (temComp) yComp + pComp.ascent() - 6f else areaBase
+            val meioAltura = max(40f, meioBase - meioTopo)
+
+            val pNum = tela.fonteAjustada(
+                numero,
+                TintaPastel,
+                R.font.cormorant_garamond_semibold,
+                (meioAltura * 0.64f).coerceIn(38f, 92f),
+                26f,
+                maxTexto
+            )
+            val pPal = tela.fonte(TintaPastel, R.font.cormorant_garamond_regular, (meioAltura * 0.19f).coerceIn(15f, 24f))
+            val altNum = -pNum.ascent()
+            val altPal = -pPal.ascent() + pPal.descent()
+            val gap = (meioAltura * 0.06f).coerceIn(4f, 10f)
+            val blocoH = altNum + gap + altPal
+            val inicioBloco = meioTopo + (meioAltura - blocoH) / 2f
+            val yNum = inicioBloco + altNum
+            val yPal = yNum + gap + (-pPal.ascent())
+
+            tela.texto(numero, largura / 2f, yNum, pNum, maxTexto, Paint.Align.CENTER)
+            tela.texto("$palavra juntos", largura / 2f, yPal, pPal, maxTexto, Paint.Align.CENTER)
+
+            tela.zona(0f, 0f, largura, btnY - 4f, abrir)
+            tela.botoesUnidade(btnY, btnH, unidade, largura - pad * 2f, pad)
         }
-        // Cartão largo e baixo: número à esquerda, palavra e composição à direita, unidades embaixo.
-        largura >= 240f -> {
-            tela.texto(numero, 18f, altura - 52f, tela.fonte(Tinta, R.font.cormorant_garamond_semibold, 64f), 150f)
-            tela.texto(palavra + " juntos", 150f, 46f, tela.fonte(Tinta, R.font.cormorant_garamond_regular, 22f), largura - 164f)
-            tela.texto(desde, 150f, 62f, tela.fonte(Tinta, R.font.cormorant_garamond_italic, 13f), largura - 164f)
-            tela.texto(composicao, 150f, 80f, tela.fonte(TintaSuave, R.font.montserrat_light, 10f), largura - 164f)
-            tela.zona(0f, 0f, largura, altura - 40f, abrir)
-            tela.botoesUnidade(altura - 34f, 26f, unidade, largura - 36f, 18f)
+
+        largura >= 200f -> {
+            val pad = 16f
+            val btnH = (altura * 0.22f).coerceIn(22f, 28f)
+            val btnY = altura - pad - btnH
+            val areaTopo = pad
+            val areaBase = btnY - 6f
+            val areaH = max(32f, areaBase - areaTopo)
+
+            val gapCol = 12f
+            val larguraUtil = largura - pad * 2f - gapCol
+            val colEsq = larguraUtil * 0.42f
+            val xDir = pad + colEsq + gapCol
+            val colDir = largura - xDir - pad
+
+            val pNum = tela.fonteAjustada(
+                numero,
+                TintaPastel,
+                R.font.cormorant_garamond_semibold,
+                (areaH * 0.92f).coerceIn(26f, 58f),
+                20f,
+                colEsq
+            )
+            tela.texto(numero, pad + colEsq / 2f, tela.baselineCentro(areaTopo + areaH / 2f, pNum), pNum, colEsq, Paint.Align.CENTER)
+
+            val mostrarComp = composicao.isNotBlank() && areaH >= 44f
+            val pPal = tela.fonte(TintaPastel, R.font.cormorant_garamond_regular, (areaH * 0.34f).coerceIn(14f, 21f))
+            val pDesde = tela.fonte(TintaSuavePastel, R.font.cormorant_garamond_italic, (areaH * 0.23f).coerceIn(10.5f, 13.5f))
+
+            if (mostrarComp) {
+                val pComp = tela.fonte(TintaSuavePastel, R.font.montserrat_light, (areaH * 0.18f).coerceIn(9f, 10.5f))
+                tela.texto("$palavra juntos", xDir, tela.baselineCentro(areaTopo + areaH * 0.24f, pPal), pPal, colDir)
+                tela.texto(desde, xDir, tela.baselineCentro(areaTopo + areaH * 0.57f, pDesde), pDesde, colDir)
+                tela.texto(composicao, xDir, tela.baselineCentro(areaTopo + areaH * 0.85f, pComp), pComp, colDir)
+            } else {
+                tela.texto("$palavra juntos", xDir, tela.baselineCentro(areaTopo + areaH * 0.34f, pPal), pPal, colDir)
+                tela.texto(desde, xDir, tela.baselineCentro(areaTopo + areaH * 0.72f, pDesde), pDesde, colDir)
+            }
+
+            tela.zona(0f, 0f, largura, btnY - 4f, abrir)
+            tela.botoesUnidade(btnY, btnH, unidade, largura - pad * 2f, pad)
         }
-        // Quadradinho: o número e a palavra centralizados. Um toque troca a unidade.
+
         else -> {
-            tela.texto(numero, largura / 2, altura / 2 + 4f, tela.fonte(Tinta, R.font.cormorant_garamond_semibold, 44f), largura - 16f, Paint.Align.CENTER)
-            tela.texto(palavra, largura / 2, altura / 2 + 28f, tela.fonte(Tinta, R.font.cormorant_garamond_regular, 18f), largura - 16f, Paint.Align.CENTER)
+            val pad = 14f
+            val menor = min(largura, altura)
+            val maxTexto = largura - pad * 2f
+            val pNum = tela.fonteAjustada(
+                numero,
+                TintaPastel,
+                R.font.cormorant_garamond_semibold,
+                (menor * 0.38f).coerceIn(24f, 54f),
+                18f,
+                maxTexto
+            )
+            val pPal = tela.fonte(TintaPastel, R.font.cormorant_garamond_regular, (menor * 0.15f).coerceIn(12.5f, 20f))
+            val altNum = -pNum.ascent()
+            val altPal = -pPal.ascent() + pPal.descent()
+            val gap = (menor * 0.05f).coerceIn(3f, 8f)
+            val inicioY = (altura - (altNum + gap + altPal)) / 2f
+            val yNum = inicioY + altNum
+            val yPal = yNum + gap + (-pPal.ascent())
+
+            tela.texto(numero, largura / 2f, yNum, pNum, maxTexto, Paint.Align.CENTER)
+            tela.texto(palavra, largura / 2f, yPal, pPal, maxTexto, Paint.Align.CENTER)
             tela.zona(0f, 0f, largura, altura, actionRunCallback<CiclarUnidadeCallback>())
         }
     }
 }
 
 class ContagemWidget : GlanceAppWidget() {
-    override val sizeMode: SizeMode = SizeMode.Responsive(
-        setOf(DpSize(110.dp, 110.dp), DpSize(250.dp, 110.dp), DpSize(250.dp, 250.dp))
-    )
+    override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val dados = lerDadosWidget(context)
@@ -400,8 +511,10 @@ class ContagemWidget : GlanceAppWidget() {
         val contagem = dados.inicio?.let { calcularContagem(it, LocalDateTime.now(FUSO_BELEM)) }
         provideContent {
             val tamanho = LocalSize.current
-            val tela = remember(tamanho.width.value, tamanho.height.value, unidade, contagem?.dias) {
-                Tela(context, tamanho.width.value, tamanho.height.value).also {
+            val larguraDp = if (tamanho.width.value > 1f) tamanho.width.value else 250f
+            val alturaDp = if (tamanho.height.value > 1f) tamanho.height.value else 110f
+            val tela = remember(larguraDp, alturaDp, unidade, dados.inicio, contagem?.dias, contagem?.composicao) {
+                Tela(context, larguraDp, alturaDp).also {
                     desenharContagem(it, dados, unidade, contagem)
                 }
             }
@@ -414,56 +527,94 @@ class ContagemWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = ContagemWidget()
 }
 
-// ---- 2. Próximas datas ----
-
 private fun desenharEventos(tela: Tela, eventos: List<EventoWidget>) {
     val largura = tela.largura
     val altura = tela.altura
-    tela.retangulo(0f, 0f, largura, altura, 22f, Papel)
-    tela.moldura(Ouro)
+    val raioFundo = min(22f, min(largura, altura) * 0.22f)
+    val pad = 16f
 
-    tela.texto("Próximas datas", 22f, 40f, tela.fonte(Tinta, R.font.cormorant_garamond_semibold, 24f), largura - 44f)
-    tela.retangulo(22f, 50f, largura - 44f, 1f, 0f, Ouro)
+    tela.retangulo(0f, 0f, largura, altura, raioFundo, FundoEventosPastel)
+    tela.moldura(BordaOuroPastel)
 
-    val linhaAltura = 48f
-    val linhas = when {
-        altura < 230f -> 2
-        altura < 330f -> 3
-        else -> 5
+    val tamTitulo = if (largura < 200f || altura < 160f) 18f else 22f
+    val pTitulo = tela.fonte(TintaPastel, R.font.cormorant_garamond_semibold, tamTitulo)
+    val tituloY = pad + (-pTitulo.ascent()) + 2f
+    tela.texto("Próximas datas", pad + 4f, tituloY, pTitulo, largura - pad * 2f - 8f)
+
+    val divisorY = tituloY + pTitulo.descent() + 6f
+    tela.retangulo(pad + 4f, divisorY, largura - pad * 2f - 8f, 1f, 0f, BordaOuroPastel)
+
+    val topoLista = divisorY + 9f
+    val linhaAltura = if (altura < 200f) 42f else 48f
+    val seloH = linhaAltura - 8f
+    val seloW = if (largura < 200f) 36f else 42f
+
+    val utilSemRodape = max(linhaAltura, altura - topoLista - pad)
+    val maxSemRodape = max(1, (utilSemRodape / linhaAltura).toInt())
+    val linhas = if (eventos.size > maxSemRodape) {
+        val utilComRodape = max(linhaAltura, altura - topoLista - pad - 16f)
+        max(1, (utilComRodape / linhaAltura).toInt())
+    } else {
+        maxSemRodape
     }
+
     if (eventos.isEmpty()) {
-        tela.texto("Nenhuma data marcada ainda.", 22f, 88f, tela.fonte(TintaSuave, R.font.cormorant_garamond_italic, 16f), largura - 44f)
+        val pVazio = tela.fonte(TintaSuavePastel, R.font.cormorant_garamond_italic, 15f)
+        tela.texto("Nenhuma data marcada ainda.", pad + 4f, topoLista + 20f, pVazio, largura - pad * 2f - 8f)
     }
+
     eventos.take(linhas).forEachIndexed { i, evento ->
-        val base = 64f + i * linhaAltura
+        val base = topoLista + i * linhaAltura
         val data = runCatching { LocalDate.parse(evento.data) }.getOrNull()
 
-        // Bloco com o dia e o mês, como o selo de data do site.
-        tela.retangulo(18f, base, 42f, 40f, 8f, Tinta)
+        tela.retangulo(pad + 2f, base, seloW, seloH, 8f, BotaoAtivoPastel)
+        val pDia = tela.fonte(CremePastel, R.font.cormorant_garamond_semibold, (seloH * 0.48f).coerceIn(15f, 19f))
+        val pMes = tela.fonte(SeloMesPastel, R.font.montserrat_semibold, (seloH * 0.21f).coerceIn(7.5f, 8.5f))
+        val centroSeloX = pad + 2f + seloW / 2f
         tela.texto(
             data?.dayOfMonth?.toString()?.padStart(2, '0') ?: "--",
-            39f, base + 22f, tela.fonte(Creme, R.font.cormorant_garamond_semibold, 20f), 40f, Paint.Align.CENTER
+            centroSeloX,
+            tela.baselineCentro(base + seloH * 0.38f, pDia),
+            pDia,
+            seloW - 4f,
+            Paint.Align.CENTER
         )
         tela.texto(
             data?.let { MESES_CURTOS[it.monthValue - 1] }.orEmpty(),
-            39f, base + 35f, tela.fonte(Ouro, R.font.montserrat_semibold, 8.5f), 40f, Paint.Align.CENTER
+            centroSeloX,
+            tela.baselineCentro(base + seloH * 0.78f, pMes),
+            pMes,
+            seloW - 4f,
+            Paint.Align.CENTER
         )
 
-        val x = 70f
-        tela.texto(evento.titulo.ifBlank { "Sem título" }, x, base + 16f, tela.fonte(Tinta, R.font.montserrat_semibold, 13f), largura - x - 16f)
-        val tipo = tela.texto(evento.tipo, x, base + 33f, tela.fonte(Ocre, R.font.montserrat_semibold, 10f), largura - x - 16f)
+        val x = pad + 2f + seloW + 10f
+        val maxLarg = max(10f, largura - x - pad)
+        val pNome = tela.fonte(TintaPastel, R.font.montserrat_semibold, 12.5f)
+        val pTipo = tela.fonte(OcrePastel, R.font.montserrat_semibold, 9.5f)
+        val pFalta = tela.fonte(TintaSuavePastel, R.font.montserrat_regular, 9.5f)
+
+        tela.texto(evento.titulo.ifBlank { "Sem título" }, x, tela.baselineCentro(base + seloH * 0.34f, pNome), pNome, maxLarg)
+        val ySub = tela.baselineCentro(base + seloH * 0.76f, pTipo)
+        val tipoW = tela.texto(evento.tipo, x, ySub, pTipo, maxLarg)
         val falta = textoFalta(data)
-        if (falta.isNotBlank()) {
-            tela.texto("  ·  $falta", x + tipo, base + 33f, tela.fonte(TintaSuave, R.font.montserrat_regular, 10f), largura - x - tipo - 16f)
+        if (falta.isNotBlank() && maxLarg - tipoW > 20f) {
+            tela.texto("  ·  $falta", x + tipoW, ySub, pFalta, maxLarg - tipoW)
         }
         if (i < linhas - 1 && i < eventos.size - 1) {
-            tela.retangulo(70f, base + linhaAltura - 5f, largura - 88f, 0.6f, 0f, Ouro)
+            tela.retangulo(x, base + linhaAltura - 4f, maxLarg, 0.6f, 0f, BordaOuroPastel.copy(alpha = 0.75f))
         }
     }
+
     if (eventos.size > linhas) {
+        val pMais = tela.fonte(TintaSuavePastel, R.font.montserrat_regular, 9.5f)
         tela.texto(
             "+${eventos.size - linhas} no app",
-            largura - 22f, altura - 14f, tela.fonte(TintaSuave, R.font.montserrat_regular, 10f), 120f, Paint.Align.RIGHT
+            largura - pad - 4f,
+            altura - pad + 2f,
+            pMais,
+            120f,
+            Paint.Align.RIGHT
         )
     }
     tela.zona(0f, 0f, largura, altura, abrirApp(tela.contexto))
@@ -483,16 +634,16 @@ private fun textoFalta(data: LocalDate?): String {
 }
 
 class EventosWidget : GlanceAppWidget() {
-    override val sizeMode: SizeMode = SizeMode.Responsive(
-        setOf(DpSize(250.dp, 180.dp), DpSize(250.dp, 280.dp), DpSize(340.dp, 380.dp))
-    )
+    override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val eventos = lerDadosWidget(context).eventos
         provideContent {
             val tamanho = LocalSize.current
-            val tela = remember(tamanho.width.value, tamanho.height.value) {
-                Tela(context, tamanho.width.value, tamanho.height.value).also { desenharEventos(it, eventos) }
+            val larguraDp = if (tamanho.width.value > 1f) tamanho.width.value else 250f
+            val alturaDp = if (tamanho.height.value > 1f) tamanho.height.value else 180f
+            val tela = remember(larguraDp, alturaDp, eventos) {
+                Tela(context, larguraDp, alturaDp).also { desenharEventos(it, eventos) }
             }
             TelaWidget(tela, "Próximas datas do casal")
         }
@@ -503,9 +654,6 @@ class EventosWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = EventosWidget()
 }
 
-// ---- 3. Cartinha ----
-
-// Só mostra a confirmação de envio por 15 minutos; depois volta o resumo das cartinhas.
 private fun statusRecente(prefs: android.content.SharedPreferences): String? {
     val status = prefs.getString(CHAVE_STATUS, null) ?: return null
     val em = prefs.getLong(CHAVE_STATUS_EM, 0L)
@@ -517,84 +665,138 @@ private fun desenharCartinha(tela: Tela, dados: DadosWidget, status: String?) {
     val altura = tela.altura
     val abrirCarta = abrirApp(tela.contexto, carta = true)
     val abrirTudo = abrirApp(tela.contexto)
+    val raioFundo = min(22f, min(largura, altura) * 0.22f)
+    val pad = 16f
 
-    tela.retangulo(0f, 0f, largura, altura, 22f, Tinta)
-    tela.moldura(Ouro)
-    tela.icone(R.drawable.ic_envelope_creme, 18f, 18f, 26f, 26f)
-    tela.texto("Cartinha", 52f, 40f, tela.fonte(Creme, R.font.cormorant_garamond_semibold, 26f), largura - 66f)
+    tela.retangulo(0f, 0f, largura, altura, raioFundo, FundoCartaPastel)
+    tela.moldura(BordaAzulPastel)
 
-    // Linha de situação: confirmação de envio, ou quantas cartinhas chegaram.
+    val grande = largura >= 210f && altura >= 210f
+    val media = largura >= 200f && !grande
+    val pequena = !grande && !media
+
+    val iconeTam = if (pequena) (min(largura, altura) * 0.16f).coerceIn(15f, 20f) else 22f
+    tela.icone(R.drawable.ic_envelope_creme, pad, pad, iconeTam, iconeTam, TintaPastel)
+
+    val xTitulo = pad + iconeTam + if (pequena) 6f else 8f
+    val maxTitulo = max(20f, largura - xTitulo - pad)
+    val pTitulo = tela.fonteAjustada(
+        "Cartinha",
+        TintaPastel,
+        R.font.cormorant_garamond_semibold,
+        if (pequena) 19f else 24f,
+        13f,
+        maxTitulo
+    )
+    tela.texto("Cartinha", xTitulo, tela.baselineCentro(pad + iconeTam / 2f, pTitulo), pTitulo, maxTitulo)
+
     val linha = when {
         status != null -> status
+        pequena && dados.cartasNovas == 1 -> "1 nova"
+        pequena && dados.cartasNovas > 1 -> "${dados.cartasNovas} novas"
+        pequena -> "Sem novas"
         dados.cartasNovas == 1 -> "1 cartinha nova para você"
         dados.cartasNovas > 1 -> "${dados.cartasNovas} cartinhas novas para você"
         else -> "Nenhuma cartinha nova"
     }
-    val corLinha = if (status != null) Ouro else Creme.copy(alpha = 0.8f)
-    tela.texto(linha, 18f, 62f, tela.fonte(corLinha, R.font.montserrat_semibold, 10.5f), largura - 36f)
-
-    val grande = largura >= 240f && altura >= 240f
-    val media = largura >= 240f && !grande
+    val corLinha = if (status != null) OcrePastel else TintaSuavePastel
+    val pLinha = tela.fonte(corLinha, R.font.montserrat_semibold, if (pequena) 9.5f else 10f)
+    val yLinha = pad + iconeTam + if (pequena) 13f else 14f
+    tela.texto(linha, pad, yLinha, pLinha, largura - pad * 2f)
 
     when {
         grande -> {
-            // Última cartinha recebida, em destaque.
-            tela.retangulo(18f, 76f, largura - 36f, 56f, 10f, Creme.copy(alpha = 0.1f))
-            val autor = if (dados.ultimaDe.isNotBlank()) "de ${dados.ultimaDe}" else "Chegue aqui quando ela chegar"
-            tela.texto(autor, 30f, 94f, tela.fonte(Creme.copy(alpha = 0.75f), R.font.montserrat_light, 9.5f), largura - 60f)
-            val trecho = dados.ultimaTexto.ifBlank { "Nenhum recado por aqui ainda." }
-            tela.texto(trecho, 30f, 116f, tela.fonte(Creme, R.font.cormorant_garamond_italic, 17f), largura - 60f)
+            val gap = 7f
+            val btnEscreverH = (altura * 0.11f).coerceIn(26f, 30f)
+            val btnEscreverY = altura - pad - btnEscreverH
+            val btnMsgH = (altura * 0.11f).coerceIn(26f, 30f)
+            val gridH = btnMsgH * 2f + gap
+            val topoGrid = btnEscreverY - gap - gridH
 
-            // Frases prontas em grade de duas colunas.
-            val colunaLargura = (largura - 36f - 8f) / 2f
-            val topo = altura - 118f
+            val cardY = yLinha + 9f
+            val cardH = (topoGrid - 8f - cardY).coerceAtLeast(38f)
+
+            tela.retangulo(pad, cardY, largura - pad * 2f, cardH, 10f, CartaoCartaPastel)
+            tela.retangulo(pad, cardY, largura - pad * 2f, cardH, 10f, BordaAzulPastel.copy(alpha = 0.6f), contorno = true, espessura = 0.7f)
+
+            val autor = if (dados.ultimaDe.isNotBlank()) "de ${dados.ultimaDe}" else "Chegue aqui quando ela chegar"
+            val pAutor = tela.fonte(TintaSuavePastel, R.font.montserrat_light, 9.5f)
+            val trecho = dados.ultimaTexto.ifBlank { "Nenhum recado por aqui ainda." }
+            val pTrecho = tela.fonte(TintaPastel, R.font.cormorant_garamond_italic, (cardH * 0.28f).coerceIn(14f, 17f))
+            val maxCard = largura - pad * 2f - 20f
+
+            tela.texto(autor, pad + 10f, tela.baselineCentro(cardY + cardH * 0.30f, pAutor), pAutor, maxCard)
+            tela.texto(trecho, pad + 10f, tela.baselineCentro(cardY + cardH * 0.69f, pTrecho), pTrecho, maxCard)
+
+            tela.zona(0f, 0f, largura, topoGrid - 4f, abrirTudo)
+
+            val colunaLargura = (largura - pad * 2f - gap) / 2f
+            val pBtn = tela.fonte(TintaPastel, R.font.montserrat_semibold, 10f)
             MENSAGENS_RAPIDAS.forEachIndexed { i, frase ->
                 val coluna = i % 2
                 val linhaIdx = i / 2
-                val x = 18f + coluna * (colunaLargura + 8f)
-                val y = topo + linhaIdx * 34f
-                tela.retangulo(x, y, colunaLargura, 28f, 9f, Ouro)
-                tela.texto(frase, x + colunaLargura / 2, y + 18f, tela.fonte(Tinta, R.font.montserrat_semibold, 10.5f), colunaLargura - 8f, Paint.Align.CENTER)
-                tela.zona(x, y, colunaLargura, 28f, actionRunCallback<EnviarCartaCallback>(actionParametersOf(ChaveTextoCarta to frase)))
+                val x = pad + coluna * (colunaLargura + gap)
+                val y = topoGrid + linhaIdx * (btnMsgH + gap)
+                tela.retangulo(x, y, colunaLargura, btnMsgH, 9f, BotaoOuroPastel)
+                tela.retangulo(x, y, colunaLargura, btnMsgH, 9f, BordaOuroPastel.copy(alpha = 0.75f), contorno = true, espessura = 0.7f)
+                tela.texto(frase, x + colunaLargura / 2f, tela.baselineCentro(y + btnMsgH / 2f, pBtn), pBtn, colunaLargura - 8f, Paint.Align.CENTER)
+                tela.zona(x, y, colunaLargura, btnMsgH, actionRunCallback<EnviarCartaCallback>(actionParametersOf(ChaveTextoCarta to frase)))
             }
-            tela.retangulo(18f, altura - 40f, largura - 36f, 26f, 9f, Creme.copy(alpha = 0.14f))
-            tela.texto("Escrever uma cartinha com calma", largura / 2, altura - 23f, tela.fonte(Creme, R.font.montserrat_semibold, 10.5f), largura - 50f, Paint.Align.CENTER)
-            tela.zona(0f, 0f, largura, altura, abrirTudo)
-            tela.zona(18f, altura - 40f, largura - 36f, 26f, abrirCarta)
+
+            tela.retangulo(pad, btnEscreverY, largura - pad * 2f, btnEscreverH, 9f, BotaoAzulSuavePastel)
+            tela.texto(
+                "Escrever uma cartinha com calma",
+                largura / 2f,
+                tela.baselineCentro(btnEscreverY + btnEscreverH / 2f, pBtn),
+                pBtn,
+                largura - pad * 2f - 12f,
+                Paint.Align.CENTER
+            )
+            tela.zona(pad, btnEscreverY, largura - pad * 2f, btnEscreverH, abrirCarta)
         }
+
         media -> {
-            // Duas frases prontas numa linha e o botão de escrever.
-            val colunaLargura = (largura - 36f - 8f) / 2f
+            val gap = 8f
+            val btnH = (altura * 0.24f).coerceIn(24f, 30f)
+            val btnY = altura - pad - btnH
+            val colunaLargura = (largura - pad * 2f - gap) / 2f
+            val pBtn = tela.fonte(TintaPastel, R.font.montserrat_semibold, 10f)
+
+            tela.zona(0f, 0f, largura, btnY - 4f, abrirTudo)
+
             MENSAGENS_RAPIDAS.take(2).forEachIndexed { i, frase ->
-                val x = 18f + i * (colunaLargura + 8f)
-                val y = altura - 40f
-                tela.retangulo(x, y, colunaLargura, 28f, 9f, Ouro)
-                tela.texto(frase, x + colunaLargura / 2, y + 18f, tela.fonte(Tinta, R.font.montserrat_semibold, 10.5f), colunaLargura - 8f, Paint.Align.CENTER)
-                tela.zona(x, y, colunaLargura, 28f, actionRunCallback<EnviarCartaCallback>(actionParametersOf(ChaveTextoCarta to frase)))
+                val x = pad + i * (colunaLargura + gap)
+                tela.retangulo(x, btnY, colunaLargura, btnH, 9f, BotaoOuroPastel)
+                tela.retangulo(x, btnY, colunaLargura, btnH, 9f, BordaOuroPastel.copy(alpha = 0.75f), contorno = true, espessura = 0.7f)
+                tela.texto(frase, x + colunaLargura / 2f, tela.baselineCentro(btnY + btnH / 2f, pBtn), pBtn, colunaLargura - 8f, Paint.Align.CENTER)
+                tela.zona(x, btnY, colunaLargura, btnH, actionRunCallback<EnviarCartaCallback>(actionParametersOf(ChaveTextoCarta to frase)))
             }
-            tela.zona(0f, 0f, largura, altura - 46f, abrirTudo)
         }
+
         else -> {
-            // Quadradinho: só o botão de escrever no app.
-            tela.retangulo(18f, altura - 40f, largura - 36f, 26f, 9f, Ouro)
-            tela.texto("Escrever", largura / 2, altura - 23f, tela.fonte(Tinta, R.font.montserrat_semibold, 11f), largura - 40f, Paint.Align.CENTER)
+            val btnH = (altura * 0.24f).coerceIn(22f, 28f)
+            val btnY = altura - pad - btnH
+            val pBtn = tela.fonte(TintaPastel, R.font.montserrat_semibold, 10.5f)
+            tela.retangulo(pad, btnY, largura - pad * 2f, btnH, 9f, BotaoOuroPastel)
+            tela.retangulo(pad, btnY, largura - pad * 2f, btnH, 9f, BordaOuroPastel.copy(alpha = 0.75f), contorno = true, espessura = 0.7f)
+            tela.texto("Escrever", largura / 2f, tela.baselineCentro(btnY + btnH / 2f, pBtn), pBtn, largura - pad * 2f - 8f, Paint.Align.CENTER)
             tela.zona(0f, 0f, largura, altura, abrirCarta)
         }
     }
 }
 
 class CartaWidget : GlanceAppWidget() {
-    override val sizeMode: SizeMode = SizeMode.Responsive(
-        setOf(DpSize(110.dp, 110.dp), DpSize(250.dp, 110.dp), DpSize(250.dp, 250.dp))
-    )
+    override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val dados = lerDadosWidget(context)
         val status = statusRecente(prefsWidgets(context))
         provideContent {
             val tamanho = LocalSize.current
-            val tela = remember(tamanho.width.value, tamanho.height.value, status, dados.cartasNovas, dados.ultimaTexto) {
-                Tela(context, tamanho.width.value, tamanho.height.value).also {
+            val larguraDp = if (tamanho.width.value > 1f) tamanho.width.value else 250f
+            val alturaDp = if (tamanho.height.value > 1f) tamanho.height.value else 110f
+            val tela = remember(larguraDp, alturaDp, status, dados.cartasNovas, dados.ultimaTexto, dados.ultimaDe) {
+                Tela(context, larguraDp, alturaDp).also {
                     desenharCartinha(it, dados, status)
                 }
             }
