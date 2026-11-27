@@ -2,12 +2,7 @@ package com.tamojunto.app
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -32,7 +27,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.animateItem
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -350,20 +344,27 @@ private fun CartaoMidia(item: Item, rotuloFeito: String, aoAbrir: () -> Unit, mo
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
             CapaMidia(poster = item.poster, titulo = item.titulo, modifier = Modifier.fillMaxSize())
-            Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) {
-                AnimatedVisibility(
-                    visible = item.feito,
-                    enter = scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn(),
-                    exit = scaleOut() + fadeOut()
+            // O selo cresce com um pequeno salto quando o item vira "feito" e encolhe ao desmarcar.
+            val escalaSelo by animateFloatAsState(
+                targetValue = if (item.feito) 1f else 0f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
+                label = "selo"
+            )
+            if (escalaSelo > 0.01f) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .graphicsLayer {
+                            scaleX = escalaSelo
+                            scaleY = escalaSelo
+                            alpha = escalaSelo.coerceIn(0f, 1f)
+                        }
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Ouro)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Ouro)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(rotuloFeito, style = EstiloRotulo, color = Tinta)
-                    }
+                    Text(rotuloFeito, style = EstiloRotulo, color = Tinta)
                 }
             }
         }
