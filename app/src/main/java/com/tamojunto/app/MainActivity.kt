@@ -24,9 +24,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         PedidosWidget.lerIntent(intent)
         // Desenha atrás das barras do sistema, com ícones escuros (o fundo do app é claro).
+        // Color aqui é o do Android (android.graphics), que tem TRANSPARENT; o do Compose não tem.
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+            statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
         )
         setContent {
             TamoJuntoTema {
