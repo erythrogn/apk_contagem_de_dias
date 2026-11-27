@@ -13,12 +13,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.res.ResourcesCompat
-import androidx.glance.Image
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalSize
 import androidx.glance.action.Action
@@ -29,6 +30,9 @@ import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
+import androidx.glance.appwidget.action.ActionCallback
+import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
 import androidx.glance.background
@@ -37,6 +41,7 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.defaultWeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -57,7 +62,8 @@ import org.json.JSONObject
 
 // ---- Widgets da tela inicial ----
 // Os três leem uma cópia dos dados gravada pelo app (SharedPreferences), então funcionam com o app fechado.
-// Cada um tem cor e layout próprios: a contagem em dourado, os eventos em papel, a cartinha em azul-tinta.
+// Cada um se adapta ao tamanho da célula: de um quadradinho até um cartão grande.
+// Limite do Android: widget não roda animação contínua. A mudança acontece no toque e a cada atualização.
 
 data class EventoWidget(val titulo: String, val data: String, val tipo: String)
 
@@ -65,6 +71,7 @@ data class DadosWidget(val inicio: String?, val nomeOutra: String, val eventos: 
 
 private const val ARQUIVO_WIDGETS = "widgets_casal"
 private const val CHAVE_WIDGETS = "dados"
+private const val CHAVE_UNIDADE = "unidade"
 
 // Quem pediu uma cartinha pelo widget: o app abre o formulário assim que a tela aparece.
 object PedidosWidget {
@@ -75,6 +82,9 @@ object PedidosWidget {
     }
 }
 
+private fun prefsWidgets(contexto: Context) =
+    contexto.getSharedPreferences(ARQUIVO_WIDGETS, Context.MODE_PRIVATE)
+
 fun salvarDadosWidget(contexto: Context, dados: DadosWidget) {
     val eventos = JSONArray()
     dados.eventos.forEach { evento ->
@@ -84,16 +94,12 @@ fun salvarDadosWidget(contexto: Context, dados: DadosWidget) {
         .put("inicio", dados.inicio ?: "")
         .put("nomeOutra", dados.nomeOutra)
         .put("eventos", eventos)
-    contexto.getSharedPreferences(ARQUIVO_WIDGETS, Context.MODE_PRIVATE)
-        .edit()
-        .putString(CHAVE_WIDGETS, json.toString())
-        .apply()
+    prefsWidgets(contexto).edit().putString(CHAVE_WIDGETS, json.toString()).apply()
 }
 
 fun lerDadosWidget(contexto: Context): DadosWidget {
     val vazio = DadosWidget(null, "", emptyList())
-    val texto = contexto.getSharedPreferences(ARQUIVO_WIDGETS, Context.MODE_PRIVATE)
-        .getString(CHAVE_WIDGETS, null) ?: return vazio
+    val texto = prefsWidgets(contexto).getString(CHAVE_WIDGETS, null) ?: return vazio
     return try {
         val json = JSONObject(texto)
         val lista = json.optJSONArray("eventos") ?: JSONArray()
@@ -110,6 +116,10 @@ fun lerDadosWidget(contexto: Context): DadosWidget {
         vazio
     }
 }
+
+// A unidade da contagem (dias, meses ou anos) é escolhida no próprio widget, com um toque.
+private fun lerUnidadeWidget(contexto: Context): String =
+    prefsWidgets(contexto).getString(CHAVE_UNIDADE, "dias") ?: "dias"
 
 // Monta o que os widgets mostram a partir do que está no app. Mesma regra de "Próximas datas" da tela inicial.
 fun montarDadosWidget(dados: DadosDoCasal, nomes: Map<String, String>): DadosWidget {
@@ -128,7 +138,7 @@ fun montarDadosWidget(dados: DadosDoCasal, nomes: Map<String, String>): DadosWid
         itens
             .filter { !it.feito && it.dataIso.isNotBlank() && it.dataIso >= hoje }
             .map { EventoWidget(it.titulo, it.dataIso, rotulo) }
-    }.sortedBy { it.data }.take(4)
+    }.sortedBy { it.data }.take(8)
     return DadosWidget(
         inicio = dados.dataNamoro,
         nomeOutra = nomes[outra].orEmpty(),
@@ -144,7 +154,7 @@ suspend fun atualizarWidgets(contexto: Context, dados: DadosWidget) {
     CartaWidget().updateAll(contexto)
 }
 
-// Abre o app. Com carta = true, o pedido segue como extra "acao" para o formulário abrir sozinho.
+// Abre o app. Com carta = true, o pedido segue como parâmetro "acao" para o formulário abrir sozinho.
 private fun abrirApp(contexto: Context, carta: Boolean = false): Action =
     actionStartActivity(
         ComponentName(contexto, MainActivity::class.java),
@@ -152,6 +162,19 @@ private fun abrirApp(contexto: Context, carta: Boolean = false): Action =
     )
 
 private val ChaveAcao = ActionParameters.Key<String>("acao")
+
+// Toque na contagem: passa de dias para meses, de meses para anos, e volta a dias.
+class CiclarUnidadeCallback : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val proxima = when (lerUnidadeWidget(context)) {
+            "dias" -> "meses"
+            "meses" -> "anos"
+            else -> "dias"
+        }
+        prefsWidgets(context).edit().putString(CHAVE_UNIDADE, proxima).apply()
+        ContagemWidget().updateAll(context)
+    }
+}
 
 private fun estilo(tamanho: Int, cor: Color, negrito: Boolean = false, serifa: Boolean = false) = TextStyle(
     color = ColorProvider(cor),
@@ -195,35 +218,73 @@ private fun ImagemRotulo(rotulo: RotuloImagem) {
     )
 }
 
-// ---- 1. Contagem de dias: bloco dourado, número grande em serifa ----
+// ---- 1. Contagem de dias: bloco dourado. Pequeno, largo ou alto, cada um mostra o que cabe. ----
 
 class ContagemWidget : GlanceAppWidget() {
+    override val sizeMode: SizeMode = SizeMode.Responsive(
+        setOf(DpSize(110.dp, 110.dp), DpSize(250.dp, 110.dp), DpSize(250.dp, 250.dp))
+    )
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val inicio = lerDadosWidget(context).inicio
-        val contagem = inicio?.let { calcularContagem(it, LocalDateTime.now(FUSO_BELEM)) }
-        val numero = rotuloImagem(
-            context,
-            contagem?.let { formatarMilhar(it.dias.toInt()) } ?: "--",
-            R.font.cormorant_garamond_semibold, 48f, Tinta
+        val dados = lerDadosWidget(context)
+        val unidade = lerUnidadeWidget(context)
+        val contagem = dados.inicio?.let { calcularContagem(it, LocalDateTime.now(FUSO_BELEM)) }
+        val par = contagem?.let { numeroDaUnidade(it, unidade) }
+        val numeroGrande = rotuloImagem(
+            context, par?.let { formatarMilhar(it.first.toInt()) } ?: "--",
+            R.font.cormorant_garamond_semibold, 56f, Tinta
         )
-        val diasJuntos = rotuloImagem(context, "dias juntos", R.font.cormorant_garamond_regular, 18f, Tinta)
+        val numeroPequeno = rotuloImagem(
+            context, par?.let { formatarMilhar(it.first.toInt()) } ?: "--",
+            R.font.cormorant_garamond_semibold, 40f, Tinta
+        )
+        val palavra = rotuloImagem(context, par?.second ?: "dias", R.font.cormorant_garamond_regular, 20f, Tinta)
+        val desde = rotuloImagem(
+            context,
+            dados.inicio?.let { "desde ${dataBr(it)}" } ?: "Defina a data do namoro no site",
+            R.font.cormorant_garamond_italic, 15f, Tinta
+        )
+        val composicao = contagem?.composicao.orEmpty()
+
         provideContent {
+            val tamanho = LocalSize.current
+            val largo = tamanho.width >= 240.dp
+            val alto = tamanho.height >= 240.dp
             Column(
                 modifier = GlanceModifier
                     .fillMaxSize()
+                    .cornerRadius(22.dp)
                     .background(Ouro)
-                    .padding(16.dp)
-                    .clickable(onClick = abrirApp(context))
+                    .padding(14.dp)
+                    .clickable(onClick = actionRunCallback<CiclarUnidadeCallback>())
             ) {
-                Text(
-                    if (inicio == null) "Defina a data do namoro no site." else "desde ${dataBr(inicio)}",
-                    style = estilo(11, Tinta)
-                )
-                Spacer(GlanceModifier.height(4.dp))
-                ImagemRotulo(numero)
-                ImagemRotulo(diasJuntos)
-                Spacer(GlanceModifier.height(6.dp))
-                Text(contagem?.composicao.orEmpty(), style = estilo(11, TintaSuave), maxLines = 2)
+                when {
+                    // Alto e largo: o cartão completo, com a data, o número e a composição.
+                    alto && largo -> {
+                        ImagemRotulo(desde)
+                        Spacer(GlanceModifier.height(4.dp))
+                        ImagemRotulo(numeroGrande)
+                        ImagemRotulo(palavra)
+                        Spacer(GlanceModifier.defaultWeight())
+                        Text(composicao, style = estilo(12, TintaSuave), maxLines = 2)
+                    }
+                    // Largo e baixo: número à esquerda, a palavra e a composição à direita.
+                    largo -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ImagemRotulo(numeroGrande)
+                            Spacer(GlanceModifier.width(12.dp))
+                            Column {
+                                ImagemRotulo(palavra)
+                                Text(composicao, style = estilo(11, TintaSuave), maxLines = 2)
+                            }
+                        }
+                    }
+                    // Quadradinho: o número e a palavra, centralizados.
+                    else -> {
+                        ImagemRotulo(numeroPequeno)
+                        ImagemRotulo(palavra)
+                    }
+                }
             }
         }
     }
@@ -233,26 +294,35 @@ class ContagemWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = ContagemWidget()
 }
 
-// ---- 2. Próximas datas: papel, com um bloco azul para o dia de cada evento ----
+// ---- 2. Próximas datas: papel, com um bloco azul para o dia de cada evento. Mostra mais linhas conforme cresce. ----
 
 class EventosWidget : GlanceAppWidget() {
-    override val sizeMode: SizeMode = SizeMode.Exact
+    override val sizeMode: SizeMode = SizeMode.Responsive(
+        setOf(DpSize(250.dp, 180.dp), DpSize(250.dp, 280.dp), DpSize(340.dp, 380.dp))
+    )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val eventos = lerDadosWidget(context).eventos
-        val titulo = rotuloImagem(context, "Próximas datas", R.font.cormorant_garamond_semibold, 20f, Tinta)
+        val titulo = rotuloImagem(context, "Próximas datas", R.font.cormorant_garamond_semibold, 22f, Tinta)
         provideContent {
-            // Em tela alta cabem três linhas; em tela baixa, duas.
-            val linhas = if (LocalSize.current.height >= 200.dp) 3 else 2
+            val alto = LocalSize.current.height
+            val linhas = when {
+                alto < 230.dp -> 2
+                alto < 330.dp -> 3
+                else -> 5
+            }
             Column(
                 modifier = GlanceModifier
                     .fillMaxSize()
+                    .cornerRadius(22.dp)
                     .background(Papel)
                     .padding(14.dp)
                     .clickable(onClick = abrirApp(context))
             ) {
                 ImagemRotulo(titulo)
-                Text("Os próximos compromissos", style = estilo(11, TintaSuave))
+                if (alto >= 230.dp) {
+                    Text("Os próximos compromissos", style = estilo(11, TintaSuave))
+                }
                 Spacer(GlanceModifier.height(8.dp))
                 if (eventos.isEmpty()) {
                     Text("Nenhuma data marcada ainda.", style = estilo(12, TintaSuave))
@@ -271,8 +341,11 @@ private fun LinhaEvento(evento: EventoWidget) {
         modifier = GlanceModifier.fillMaxWidth().padding(start = 0.dp, top = 3.dp, end = 0.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Filete dourado à esquerda: o detalhe de marca que o site usa nos cartões.
+        Box(modifier = GlanceModifier.width(3.dp).height(34.dp).background(Ouro)) {}
+        Spacer(GlanceModifier.width(8.dp))
         Column(
-            modifier = GlanceModifier.width(40.dp).background(Tinta).padding(4.dp),
+            modifier = GlanceModifier.width(40.dp).cornerRadius(8.dp).background(Tinta).padding(4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -307,36 +380,49 @@ class EventosWidgetReceiver : GlanceAppWidgetReceiver() {
 // ---- 3. Cartinha: azul-tinta, com o envelope e um botão que abre o formulário no app ----
 
 class CartaWidget : GlanceAppWidget() {
+    override val sizeMode: SizeMode = SizeMode.Responsive(
+        setOf(DpSize(110.dp, 110.dp), DpSize(250.dp, 110.dp))
+    )
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val nome = lerDadosWidget(context).nomeOutra
         val icone = ImageProvider(R.drawable.ic_envelope_creme)
-        val titulo = rotuloImagem(context, "Cartinha", R.font.cormorant_garamond_semibold, 22f, Creme)
+        val titulo = rotuloImagem(context, "Cartinha", R.font.cormorant_garamond_semibold, 24f, Creme)
         provideContent {
+            val largo = LocalSize.current.width >= 200.dp
             Column(
                 modifier = GlanceModifier
                     .fillMaxSize()
+                    .cornerRadius(22.dp)
                     .background(Tinta)
-                    .padding(16.dp)
+                    .padding(14.dp)
                     .clickable(onClick = abrirApp(context, carta = true))
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(provider = icone, contentDescription = null, modifier = GlanceModifier.size(26.dp))
+                    Image(provider = icone, contentDescription = null, modifier = GlanceModifier.size(24.dp))
                     Spacer(GlanceModifier.width(8.dp))
                     ImagemRotulo(titulo)
                 }
-                Spacer(GlanceModifier.height(6.dp))
-                Text(
-                    if (nome.isBlank()) "Escreva uma cartinha" else "Para $nome",
-                    style = estilo(12, Creme),
-                    maxLines = 1
-                )
+                if (largo) {
+                    Spacer(GlanceModifier.height(4.dp))
+                    Text(
+                        if (nome.isBlank()) "Escreva uma cartinha" else "Para $nome",
+                        style = estilo(12, Creme),
+                        maxLines = 1
+                    )
+                }
                 Spacer(GlanceModifier.defaultWeight())
                 Box(
                     modifier = GlanceModifier
+                        .fillMaxWidth()
+                        .cornerRadius(12.dp)
                         .background(Ouro)
-                        .padding(start = 14.dp, top = 8.dp, end = 14.dp, bottom = 8.dp)
+                        .padding(start = 12.dp, top = 7.dp, end = 12.dp, bottom = 7.dp)
                 ) {
-                    Text("Escrever agora", style = estilo(13, Tinta, negrito = true))
+                    Text(
+                        if (largo) "Escrever agora" else "Escrever",
+                        style = estilo(13, Tinta, negrito = true)
+                    )
                 }
             }
         }
