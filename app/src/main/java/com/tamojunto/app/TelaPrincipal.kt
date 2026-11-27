@@ -90,19 +90,29 @@ fun TelaPrincipal(usuario: FirebaseUser) {
 fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
     // Vazio: menu. Senão, o nome da tela aberta a partir do menu.
     var destino by rememberSaveable { mutableStateOf("") }
-    // Amigos volta para Perfil; as outras telas voltam para o menu.
-    BackHandler(enabled = destino.isNotEmpty()) { destino = if (destino == "amigos") "perfil" else "" }
+    val pai = when {
+        destino == "amigos" || destino == "grupos" -> "perfil"
+        destino.startsWith("grupo:") -> "grupos"
+        else -> ""
+    }
+    BackHandler(enabled = destino.isNotEmpty()) { destino = pai }
 
-    when (destino) {
-        "config" -> TelaConfiguracoes(dados, usuario)
-        "perfil" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) {
+    when {
+        destino == "config" -> TelaConfiguracoes(dados, usuario)
+        destino == "perfil" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) {
             TelaPerfil(aoAbrir = { destino = it })
         }
-        "amigos" -> ComVoltar(rotulo = "Perfil", aoVoltar = { destino = "perfil" }) { TelaAmigos() }
-        "calendario" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaCalendario(dados) }
-        "viagens" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaViagens(dados) }
-        "missoes" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaMissoes() }
-        "ceu" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaCeu() }
+        destino == "amigos" -> ComVoltar(rotulo = "Perfil", aoVoltar = { destino = "perfil" }) { TelaAmigos() }
+        destino == "calendario" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaCalendario(dados) }
+        destino == "viagens" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaViagens(dados) }
+        destino == "missoes" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaMissoes() }
+        destino == "ceu" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaCeu() }
+        destino == "grupos" -> ComVoltar(rotulo = "Perfil", aoVoltar = { destino = "perfil" }) {
+            TelaGrupos(aoAbrir = { destino = "grupo:$it" })
+        }
+        destino.startsWith("grupo:") -> ComVoltar(rotulo = "Duos e grupos", aoVoltar = { destino = "grupos" }) {
+            TelaGrupoDetalhe(gid = destino.removePrefix("grupo:"), aoSair = { destino = "grupos" })
+        }
         else -> Column(
             Modifier
                 .fillMaxSize()

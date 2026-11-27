@@ -179,16 +179,24 @@ fun TelaPerfil(aoAbrir: (String) -> Unit) {
             }
         }
 
-        if (p.pedidosAmigos > 0) {
+        if (p.pedidosAmigos > 0 || p.convitesGrupos > 0) {
             item {
                 Text("Esperando você", style = EstiloTituloSecao, color = Tinta)
             }
-            item {
+            if (p.pedidosAmigos > 0) item {
                 LinhaHub(
                     titulo = "Pedidos de amizade",
                     apoio = "Aceite ou recuse quem quer ser seu amigo.",
                     info = "${p.pedidosAmigos} ${if (p.pedidosAmigos == 1) "novo" else "novos"}",
                     aoClicar = { aoAbrir("amigos") }
+                )
+            }
+            if (p.convitesGrupos > 0) item {
+                LinhaHub(
+                    titulo = "Convites para duos e grupos",
+                    apoio = "Alguém chamou você para um duo ou um grupo.",
+                    info = "${p.convitesGrupos} ${if (p.convitesGrupos == 1) "novo" else "novos"}",
+                    aoClicar = { aoAbrir("grupos") }
                 )
             }
         }
@@ -202,6 +210,14 @@ fun TelaPerfil(aoAbrir: (String) -> Unit) {
                 apoio = "Procure pelo @ e troque pedidos de amizade.",
                 info = "${p.qtdAmigos} ${if (p.qtdAmigos == 1) "amigo" else "amigos"}",
                 aoClicar = { aoAbrir("amigos") }
+            )
+        }
+        item {
+            LinhaHub(
+                titulo = "Duos e grupos",
+                apoio = "Um duo só entre vocês dois, ou um grupo de até 10 pessoas.",
+                info = "${p.qtdGrupos} ${if (p.qtdGrupos == 1) "duo ou grupo" else "duos e grupos"}",
+                aoClicar = { aoAbrir("grupos") }
             )
         }
     }
