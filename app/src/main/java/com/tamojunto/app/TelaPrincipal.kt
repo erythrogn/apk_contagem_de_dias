@@ -101,6 +101,8 @@ fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
         "amigos" -> ComVoltar(rotulo = "Perfil", aoVoltar = { destino = "perfil" }) { TelaAmigos() }
         "calendario" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaCalendario(dados) }
         "viagens" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaViagens(dados) }
+        "missoes" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaMissoes() }
+        "ceu" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) { TelaCeu() }
         else -> Column(
             Modifier
                 .fillMaxSize()
@@ -142,9 +144,16 @@ fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
             LinhaMenu(
                 caminhos = listOf("M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.6 6.7 19.1l1-5.8-4.2-4.1 5.9-.9z"),
                 titulo = "Missões",
-                apoio = "Em breve no app",
-                ativo = false,
-                aoClicar = {}
+                apoio = "Missões para fazer juntos e o XP do Laço",
+                ativo = true,
+                aoClicar = { destino = "missoes" }
+            )
+            LinhaMenu(
+                caminhos = listOf("M12 4l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5-3.6-3.5 5-.7z"),
+                titulo = "Céu de vocês",
+                apoio = "As histórias que viraram estrela",
+                ativo = true,
+                aoClicar = { destino = "ceu" }
             )
         }
     }
