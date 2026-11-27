@@ -88,52 +88,71 @@ fun TelaPrincipal(usuario: FirebaseUser) {
 
 @Composable
 fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
-    var emConfiguracoes by rememberSaveable { mutableStateOf(false) }
-    BackHandler(enabled = emConfiguracoes) { emConfiguracoes = false }
+    // Vazio: menu. Senão, o nome da tela aberta a partir do menu.
+    var destino by rememberSaveable { mutableStateOf("") }
+    BackHandler(enabled = destino.isNotEmpty()) { destino = "" }
 
-    if (emConfiguracoes) {
-        TelaConfiguracoes(dados, usuario)
-        return
+    when (destino) {
+        "config" -> TelaConfiguracoes(dados, usuario)
+        "calendario" -> ComVoltar(aoVoltar = { destino = "" }) { TelaCalendario(dados) }
+        "viagens" -> ComVoltar(aoVoltar = { destino = "" }) { TelaViagens(dados) }
+        else -> Column(
+            Modifier
+                .fillMaxSize()
+                .padding(12.dp)
+                .papelDoSite()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Mais", style = EstiloTituloSecao, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(18.dp))
+            LinhaMenu(
+                caminhos = listOf("M4 7h9M17 7h3M4 17h3M11 17h9", "M14 5v4M7 15v4"),
+                titulo = "Configurações",
+                apoio = "Conta, casal e aparência",
+                ativo = true,
+                aoClicar = { destino = "config" }
+            )
+            LinhaMenu(
+                caminhos = listOf("M4 6h16v14H4z", "M4 10h16", "M8 3v4M16 3v4"),
+                titulo = "Calendário",
+                apoio = "Planos, mesversário e datas",
+                ativo = true,
+                aoClicar = { destino = "calendario" }
+            )
+            LinhaMenu(
+                caminhos = listOf("M3 12h18", "M12 3c3 3.5 3 14.5 0 18", "M12 3c-3 3.5-3 14.5 0 18"),
+                titulo = "Viagens",
+                apoio = "Roteiros e preparativos",
+                ativo = true,
+                aoClicar = { destino = "viagens" }
+            )
+            LinhaMenu(
+                caminhos = listOf("M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.6 6.7 19.1l1-5.8-4.2-4.1 5.9-.9z"),
+                titulo = "Missões",
+                apoio = "Em breve no app",
+                ativo = false,
+                aoClicar = {}
+            )
+        }
     }
+}
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(12.dp)
-            .papelDoSite()
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("Mais", style = EstiloTituloSecao, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(18.dp))
-        LinhaMenu(
-            caminhos = listOf("M4 7h9M17 7h3M4 17h3M11 17h9", "M14 5v4M7 15v4"),
-            titulo = "Configurações",
-            apoio = "Conta, casal e aparência",
-            ativo = true,
-            aoClicar = { emConfiguracoes = true }
-        )
-        LinhaMenu(
-            caminhos = listOf("M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.6 6.7 19.1l1-5.8-4.2-4.1 5.9-.9z"),
-            titulo = "Missões",
-            apoio = "Em breve no app",
-            ativo = false,
-            aoClicar = {}
-        )
-        LinhaMenu(
-            caminhos = listOf("M4 6h16v14H4z", "M4 10h16", "M8 3v4M16 3v4"),
-            titulo = "Calendário",
-            apoio = "Em breve no app",
-            ativo = false,
-            aoClicar = {}
-        )
-        LinhaMenu(
-            caminhos = listOf("M3 12h18", "M12 3c3 3.5 3 14.5 0 18", "M12 3c-3 3.5-3 14.5 0 18"),
-            titulo = "Viagens",
-            apoio = "Em breve no app",
-            ativo = false,
-            aoClicar = {}
-        )
+// Cabeçalho para voltar ao menu Mais, acima de uma tela aberta a partir dele.
+@Composable
+private fun ComVoltar(aoVoltar: () -> Unit, conteudo: @Composable () -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = aoVoltar)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconeLinha(caminhos = listOf("M15 19l-7-7 7-7"), tamanho = 18.dp, cor = Tinta, espessura = 1.5f)
+            Text("Mais", style = EstiloApoio, color = Tinta, modifier = Modifier.padding(start = 6.dp))
+        }
+        Box(Modifier.weight(1f)) { conteudo() }
     }
 }
 

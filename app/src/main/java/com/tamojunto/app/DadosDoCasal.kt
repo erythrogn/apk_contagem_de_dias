@@ -16,6 +16,9 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+// Um passo de preparativos de uma viagem (lista de malas).
+data class Passo(val nome: String, val feito: Boolean)
+
 // Um item de filme, série, jogo ou coisinha, lido do Realtime Database (mesmos campos do site).
 data class Item(
     val chave: String,
@@ -37,7 +40,13 @@ data class Item(
     val onde: String = "",
     val plataforma: String = "",
     val nota1: Int = 0,
-    val nota2: Int = 0
+    val nota2: Int = 0,
+    // Campos de planos, viagens e paradas do roteiro (mesmos nomes do banco usados pelo site).
+    val tipo: String = "",
+    val viagemKey: String = "",
+    val fim: String = "",
+    val imagem: String = "",
+    val checklist: List<Passo> = emptyList()
 ) {
     companion object {
         fun de(chave: String, s: DataSnapshot, secao: String): Item {
@@ -62,7 +71,7 @@ data class Item(
                 feito = feito,
                 status = texto("status"),
                 categoria = texto("category"),
-                notas = texto("notes"),
+                notas = texto("notes").ifBlank { texto("note") },
                 poster = texto("poster"),
                 diretor = texto("director"),
                 elenco = texto("cast"),
@@ -70,7 +79,14 @@ data class Item(
                 onde = texto("where"),
                 plataforma = texto("platform"),
                 nota1 = texto("ratingPessoa1").toDoubleOrNull()?.toInt() ?: 0,
-                nota2 = texto("ratingPessoa2").toDoubleOrNull()?.toInt() ?: 0
+                nota2 = texto("ratingPessoa2").toDoubleOrNull()?.toInt() ?: 0,
+                tipo = texto("kind"),
+                viagemKey = texto("viagemKey"),
+                fim = texto("fim"),
+                imagem = texto("image"),
+                checklist = s.child("checklist").children.map { c ->
+                    Passo(c.child("name").value?.toString() ?: "", c.child("done").value == true)
+                }
             )
         }
     }
