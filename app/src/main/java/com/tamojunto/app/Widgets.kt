@@ -808,3 +808,4 @@ class CartaWidget : GlanceAppWidget() {
 class CartaWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = CartaWidget()
 }
+{}
