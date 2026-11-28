@@ -193,19 +193,23 @@ class DadosDoCasal(private val uid: String) {
     fun criarItem(colecao: String, campos: Map<String, Any?>, resumo: String, aoErro: (Exception) -> Unit): Boolean {
         val id = casalId ?: return false
         val usuario = FirebaseAuth.getInstance().currentUser ?: return false
-        return Registro.criar(id, usuario, colecao, campos, resumo, aoErro) != null
+        val criado = Registro.criar(id, usuario, colecao, campos, resumo, aoErro) != null
+        if (criado) AvisosApp.depoisDeGravar(colecao, "criar", resumo)
+        return criado
     }
 
     fun atualizarItem(colecao: String, chave: String, campos: Map<String, Any?>, resumo: String, aoErro: (Exception) -> Unit) {
         val id = casalId ?: return
         val usuario = FirebaseAuth.getInstance().currentUser ?: return
         Registro.atualizar(id, usuario, colecao, chave, campos, resumo, aoErro)
+        AvisosApp.depoisDeGravar(colecao, "atualizar", resumo)
     }
 
     fun apagarItem(colecao: String, chave: String, resumo: String, aoErro: (Exception) -> Unit) {
         val id = casalId ?: return
         val usuario = FirebaseAuth.getInstance().currentUser ?: return
         Registro.apagar(id, usuario, colecao, chave, resumo, aoErro)
+        AvisosApp.depoisDeGravar(colecao, "apagar", resumo)
     }
 
     // Grava uma nota do tipo texto ou lista. Devolve null se ainda não dá para salvar (sem casal ou slot).
@@ -250,6 +254,7 @@ class DadosDoCasal(private val uid: String) {
         val para = if (de == "pessoa1") "pessoa2" else "pessoa1"
         banco.getReference("casais/$casal/cartinhas").push()
             .setValue(mapOf("de" to de, "para" to para, "texto" to texto, "em" to ServerValue.TIMESTAMP))
+        AvisosApp.depoisDeGravar("cartinhas", "criar", "")
     }
 
     // Desliga o compartilhamento: o site guarda ativo = false e a última posição.

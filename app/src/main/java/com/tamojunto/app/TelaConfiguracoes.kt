@@ -366,6 +366,8 @@ fun TelaConfiguracoes(dados: DadosDoCasal, usuario: FirebaseUser) {
             }
         }
 
+        SecaoAvisosConfig()
+
         // Conta
         Secao("Conta", "Sair encerra a sessão neste aparelho.") {
             BotaoSite(texto = "Sair da conta", aoClicar = { pedindoSair = true })

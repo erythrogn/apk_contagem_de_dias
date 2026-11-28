@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         PedidosWidget.lerIntent(intent)
+        AvisosApp.criarCanal(this)
         // Desenha atrás das barras do sistema, com ícones escuros (o fundo do app é claro).
         // Color aqui é o do Android (android.graphics), que tem TRANSPARENT; o do Compose não tem.
         enableEdgeToEdge(

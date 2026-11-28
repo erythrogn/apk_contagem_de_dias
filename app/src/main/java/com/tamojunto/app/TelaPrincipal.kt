@@ -96,6 +96,7 @@ fun TelaPrincipal(usuario: FirebaseUser) {
     }
 
     var aba by rememberSaveable { mutableStateOf(Aba.INICIO) }
+    PrepararAvisos()
 
     // Páginas em tela cheia: a tela desenha atrás das barras do sistema, e só o topo fica abaixo
     // da barra de status. A barra flutua por cima do fim da tela, e as listas reservam espaço para ela.
