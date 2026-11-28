@@ -14,13 +14,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.Dispatchers
@@ -44,46 +47,113 @@ suspend fun lerFoto(contexto: Context, uri: Uri): Pair<ByteArray, String>? = wit
     bytes to (contexto.contentResolver.getType(uri) ?: "image/jpeg")
 }
 
-// Configurações do site, na mesma ordem: perfil, casal, fotos da página inicial, senha do Bloco e sair.
+// Mensagem de uma ação: verde-suave quando deu certo, ocre quando o servidor recusou.
+private data class Aviso(val texto: String, val erro: Boolean)
+
+private fun avisoDe(r: RespostaServidor, sucesso: String): Aviso =
+    if (r.ok) Aviso(r.msg.ifBlank { sucesso }, false)
+    else Aviso(r.msg.ifBlank { "Não deu certo. Tente de novo." }, true)
+
+@Composable
+private fun AvisoTexto(aviso: Aviso?) {
+    if (aviso == null) return
+    Text(
+        aviso.texto,
+        style = EstiloRotulo,
+        color = if (aviso.erro) Ocre else TintaSuave,
+        modifier = Modifier.padding(top = 4.dp)
+    )
+}
+
+// Bloco de uma seção: título em itálico serifado, apoio pequeno e o conteúdo com espaço entre os itens.
+@Composable
+private fun Secao(titulo: String, apoio: String? = null, conteudo: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 28.dp)) {
+        Text(titulo, style = EstiloTituloSecao, color = Tinta)
+        if (apoio != null) {
+            Text(apoio, style = EstiloApoio, color = TintaSuave, modifier = Modifier.padding(top = 4.dp))
+        }
+        Column(
+            Modifier.fillMaxWidth().padding(top = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            content = conteudo
+        )
+    }
+}
+
+// Configurações do site, na mesma ordem: perfil, casal (data, convite, fotos, senha) e conta.
 @Composable
 fun TelaConfiguracoes(dados: DadosDoCasal, usuario: FirebaseUser) {
     val contexto = LocalContext.current
     val escopo = rememberCoroutineScope()
     val areaTransferencia = LocalClipboardManager.current
 
+    // Quando isto muda, a tela busca o perfil e as fotos de novo.
+    var recarregar by remember { mutableStateOf(0) }
+
+    var perfilCarregado by rememberSaveable { mutableStateOf(false) }
     var nome by rememberSaveable { mutableStateOf(usuario.displayName ?: "") }
-    var avisoPerfil by remember { mutableStateOf("") }
-    var avisoFotoPerfil by remember { mutableStateOf("") }
-    var avisoData by remember { mutableStateOf("") }
+    var handle by rememberSaveable { mutableStateOf("") }
+    var fotoPerfil by remember { mutableStateOf("") }
+    var avisoNome by remember { mutableStateOf<Aviso?>(null) }
+    var avisoHandle by remember { mutableStateOf<Aviso?>(null) }
+    var avisoFotoPerfil by remember { mutableStateOf<Aviso?>(null) }
+
+    var avisoData by remember { mutableStateOf<Aviso?>(null) }
     var escolhendoData by remember { mutableStateOf(false) }
     var codigoConvite by remember { mutableStateOf<String?>(null) }
-    var avisoConvite by remember { mutableStateOf("") }
-    var avisoFotoCasal by remember { mutableStateOf("") }
+    var avisoConvite by remember { mutableStateOf<Aviso?>(null) }
+    var fotosCasal by remember { mutableStateOf<List<FotoCasal>>(emptyList()) }
+    var avisoFotosCasal by remember { mutableStateOf<Aviso?>(null) }
+    var fotoParaRemover by remember { mutableStateOf<FotoCasal?>(null) }
+
     var senhaAtual by remember { mutableStateOf("") }
     var senhaNova by remember { mutableStateOf("") }
     var senhaRepetida by remember { mutableStateOf("") }
-    var avisoSenha by remember { mutableStateOf("") }
+    var avisoSenha by remember { mutableStateOf<Aviso?>(null) }
+
+    var pedindoSair by remember { mutableStateOf(false) }
+
+    LaunchedEffect(recarregar) {
+        val perfil = AmizadesServidor.carregarPerfil()
+        if (perfil != null) {
+            // Preenche nome e @ só na primeira vez, para não apagar o que a pessoa está digitando.
+            if (!perfilCarregado) {
+                nome = perfil.nome.takeIf { it != "Sem nome" } ?: nome
+                handle = perfil.handle
+                perfilCarregado = true
+            }
+            fotoPerfil = perfil.foto
+        }
+        if (dados.casalId != null) {
+            fotosCasal = InicioServidorCasal.carregar().first?.fotos.orEmpty()
+        }
+    }
 
     val escolherFotoPerfil = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) escopo.launch {
-            avisoFotoPerfil = "Enviando foto..."
+            avisoFotoPerfil = Aviso("Enviando foto...", false)
             val arquivo = lerFoto(contexto, uri)
-            avisoFotoPerfil = if (arquivo == null) {
-                "Não consegui ler essa foto."
+            if (arquivo == null) {
+                avisoFotoPerfil = Aviso("Não consegui ler essa foto.", true)
             } else {
-                Servidor.enviarFoto("/api/config/foto-perfil", arquivo.first, arquivo.second).msg
+                val r = Servidor.enviarFoto("/api/config/foto-perfil", arquivo.first, arquivo.second)
+                avisoFotoPerfil = avisoDe(r, "Foto salva.")
+                recarregar++
             }
         }
     }
 
     val escolherFotoCasal = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) escopo.launch {
-            avisoFotoCasal = "Enviando foto..."
+            avisoFotosCasal = Aviso("Enviando foto...", false)
             val arquivo = lerFoto(contexto, uri)
-            avisoFotoCasal = if (arquivo == null) {
-                "Não consegui ler essa foto."
+            if (arquivo == null) {
+                avisoFotosCasal = Aviso("Não consegui ler essa foto.", true)
             } else {
-                Servidor.enviarFoto("/api/config/fotos", arquivo.first, arquivo.second).msg
+                val r = Servidor.enviarFoto("/api/config/fotos", arquivo.first, arquivo.second)
+                avisoFotosCasal = avisoDe(r, "Foto adicionada.")
+                recarregar++
             }
         }
     }
@@ -91,182 +161,257 @@ fun TelaConfiguracoes(dados: DadosDoCasal, usuario: FirebaseUser) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .padding(12.dp)
+            .papelDoSite()
+            .padding(20.dp)
             .verticalScroll(rememberScrollState())
-            .padding(16.dp)
     ) {
-        Text("Configurações", style = MaterialTheme.typography.headlineMedium)
+        Text("Configurações", style = EstiloTituloSecao, color = Tinta)
         Text(
             if (dados.casalId == null) "Sua conta." else "Sua conta e o casal.",
-            modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+            style = EstiloApoio,
+            color = TintaSuave,
+            modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
         )
 
         // Perfil
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Text("Seu perfil", style = MaterialTheme.typography.titleMedium)
-                OutlinedTextField(
-                    value = nome,
-                    onValueChange = { nome = it.take(40) },
-                    label = { Text("Seu nome") },
-                    supportingText = { Text("Até 40 letras. É assim que as outras pessoas veem você.") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                )
-                Button(
-                    onClick = {
-                        escopo.launch {
-                            val r = Servidor.postJson("/api/config/perfil", JSONObject().put("nome", nome.trim()))
-                            avisoPerfil = r.msg
-                        }
-                    },
-                    modifier = Modifier.padding(top = 8.dp)
-                ) { Text("Salvar nome") }
-                if (avisoPerfil.isNotBlank()) Text(avisoPerfil, modifier = Modifier.padding(top = 4.dp))
-
-                Row(modifier = Modifier.padding(top = 12.dp)) {
-                    OutlinedButton(onClick = {
-                        escolherFotoPerfil.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    }) { Text("Trocar foto") }
-                    TextButton(onClick = {
-                        escopo.launch {
-                            avisoFotoPerfil = Servidor.apagar("/api/config/foto-perfil").msg
-                        }
-                    }) { Text("Usar a foto da conta Google") }
-                }
-                if (avisoFotoPerfil.isNotBlank()) Text(avisoFotoPerfil)
+        Secao("Seu perfil", "É assim que as outras pessoas veem você.") {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                AvatarPessoa(nome = nome.ifBlank { "?" }, foto = fotoPerfil, tamanho = 72.dp)
+                Text(usuario.email.orEmpty(), style = EstiloRotulo, color = TintaSuave)
             }
+            OutlinedTextField(
+                value = nome,
+                onValueChange = { nome = it.take(40) },
+                label = { Text("Seu nome") },
+                supportingText = { Text("Até 40 letras.") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            BotaoSite(
+                texto = "Salvar nome",
+                primario = true,
+                modifier = Modifier.fillMaxWidth(),
+                aoClicar = {
+                    escopo.launch {
+                        val r = Servidor.postJson("/api/config/perfil", JSONObject().put("nome", nome.trim()))
+                        avisoNome = avisoDe(r, "Nome salvo.")
+                        if (r.ok) recarregar++
+                    }
+                }
+            )
+            AvisoTexto(avisoNome)
+
+            OutlinedTextField(
+                value = handle,
+                onValueChange = { handle = it.replace(" ", "").removePrefix("@") },
+                label = { Text("Seu @") },
+                prefix = { Text("@") },
+                supportingText = { Text("Amigos encontram você por esse @.") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            BotaoSite(
+                texto = "Salvar @",
+                primario = true,
+                modifier = Modifier.fillMaxWidth(),
+                aoClicar = {
+                    escopo.launch {
+                        val msg = AmizadesServidor.definirHandle(handle.trim())
+                        // definirHandle devolve a mensagem de sucesso fixa quando deu certo.
+                        avisoHandle = Aviso(msg, msg != "Seu @ foi salvo.")
+                        if (!avisoHandle!!.erro) recarregar++
+                    }
+                }
+            )
+            AvisoTexto(avisoHandle)
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                BotaoSite(
+                    texto = "Trocar foto",
+                    modifier = Modifier.weight(1f),
+                    aoClicar = {
+                        escolherFotoPerfil.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    }
+                )
+                BotaoSite(
+                    texto = "Foto do Google",
+                    modifier = Modifier.weight(1f),
+                    aoClicar = {
+                        escopo.launch {
+                            val r = Servidor.apagar("/api/config/foto-perfil")
+                            avisoFotoPerfil = avisoDe(r, "Agora você usa a foto da conta Google.")
+                            if (r.ok) recarregar++
+                        }
+                    }
+                )
+            }
+            AvisoTexto(avisoFotoPerfil)
         }
 
-        // Casal
         if (dados.casalId != null) {
-            Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text("O casal", style = MaterialTheme.typography.titleMedium)
+            // Casal
+            Secao("O casal", "Data, convite e as fotos da página inicial.") {
+                Text("Data de início", style = EstiloRotulo, color = TintaSuave)
+                Text(
+                    dados.dataNamoro?.let { dataBr(it) } ?: "Não definida",
+                    style = EstiloApoio,
+                    color = Tinta
+                )
+                BotaoSite(texto = "Escolher data", aoClicar = { escolhendoData = true })
+                AvisoTexto(avisoData)
 
-                    Text(
-                        "Data de início: " + (dados.dataNamoro?.let { dataBr(it) } ?: "não definida"),
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                    OutlinedButton(onClick = { escolhendoData = true }, modifier = Modifier.padding(top = 8.dp)) {
-                        Text("Escolher data")
-                    }
-                    if (avisoData.isNotBlank()) Text(avisoData, modifier = Modifier.padding(top = 4.dp))
-
-                    Text("Convidar a outra pessoa", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
-                    Text("O código vale 7 dias e só pode ser usado uma vez.", modifier = Modifier.padding(top = 4.dp))
-                    Button(
-                        onClick = {
-                            escopo.launch {
-                                val r = Servidor.postJson("/api/config/convite", JSONObject())
-                                codigoConvite = if (r.ok) r.corpo?.optString("codigo") else null
-                                avisoConvite = if (r.ok) "" else r.msg
-                            }
-                        },
-                        modifier = Modifier.padding(top = 8.dp)
-                    ) { Text("Gerar código") }
-                    codigoConvite?.let { codigo ->
-                        Text(codigo, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 8.dp))
-                        OutlinedButton(onClick = { areaTransferencia.setText(AnnotatedString(codigo)) }) {
-                            Text("Copiar código")
+                Text("Convidar a outra pessoa", style = EstiloRotulo, color = TintaSuave, modifier = Modifier.padding(top = 8.dp))
+                Text("O código vale 7 dias e só pode ser usado uma vez.", style = EstiloApoio, color = TintaSuave)
+                BotaoSite(
+                    texto = "Gerar código",
+                    aoClicar = {
+                        escopo.launch {
+                            val r = Servidor.postJson("/api/config/convite", JSONObject())
+                            codigoConvite = if (r.ok) r.corpo?.optString("codigo") else null
+                            avisoConvite = if (r.ok) null else avisoDe(r, "")
                         }
                     }
-                    if (avisoConvite.isNotBlank()) Text(avisoConvite, modifier = Modifier.padding(top = 4.dp))
-
-                    Text("Fotos da página inicial", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
-                    Text("Por enquanto o app só adiciona fotos. Ver e apagar fica para depois.", modifier = Modifier.padding(top = 4.dp))
-                    OutlinedButton(
-                        onClick = {
-                            escolherFotoCasal.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                        },
-                        modifier = Modifier.padding(top = 8.dp)
-                    ) { Text("Adicionar foto") }
-                    if (avisoFotoCasal.isNotBlank()) Text(avisoFotoCasal, modifier = Modifier.padding(top = 4.dp))
+                )
+                codigoConvite?.let { codigo ->
+                    Text(codigo, style = EstiloTituloSecao, color = Tinta)
+                    BotaoSite(
+                        texto = "Copiar código",
+                        aoClicar = { areaTransferencia.setText(AnnotatedString(codigo)) }
+                    )
                 }
+                AvisoTexto(avisoConvite)
+
+                Text("Fotos da página inicial", style = EstiloRotulo, color = TintaSuave, modifier = Modifier.padding(top = 8.dp))
+                if (fotosCasal.isEmpty()) {
+                    Text("Nenhuma foto ainda.", style = EstiloApoio, color = TintaSuave)
+                }
+                fotosCasal.forEach { foto ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        AsyncImage(
+                            model = foto.url,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(Modifier.weight(1f))
+                        BotaoSite(texto = "Remover", aoClicar = { fotoParaRemover = foto })
+                    }
+                }
+                BotaoSite(
+                    texto = "Adicionar foto",
+                    aoClicar = {
+                        escolherFotoCasal.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    }
+                )
+                AvisoTexto(avisoFotosCasal)
             }
 
             // Senha do Bloco de Notas
-            Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text("Senha do Bloco de Notas", style = MaterialTheme.typography.titleMedium)
-                    Text("A mesma senha vale para o casal inteiro. Para trocar, confirme a senha atual.", modifier = Modifier.padding(top = 4.dp))
-                    OutlinedTextField(
-                        value = senhaAtual,
-                        onValueChange = { senhaAtual = it },
-                        label = { Text("Senha atual") },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    )
-                    OutlinedTextField(
-                        value = senhaNova,
-                        onValueChange = { senhaNova = it },
-                        label = { Text("Nova senha") },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    )
-                    OutlinedTextField(
-                        value = senhaRepetida,
-                        onValueChange = { senhaRepetida = it },
-                        label = { Text("Repita a nova senha") },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    )
-                    Button(
-                        onClick = {
-                            when {
-                                senhaNova.length < 4 -> avisoSenha = "A nova senha precisa ter pelo menos 4 caracteres."
-                                senhaNova != senhaRepetida -> avisoSenha = "As duas senhas novas não batem."
-                                else -> escopo.launch {
-                                    // Como no site: manda o SHA-256 das senhas, nunca a senha em texto.
-                                    val r = Servidor.postJson(
-                                        "/api/config/senha-bloco",
-                                        JSONObject()
-                                            .put("atual", sha256Hex(senhaAtual))
-                                            .put("nova", sha256Hex(senhaNova))
-                                    )
-                                    avisoSenha = r.msg
-                                    if (r.ok) {
-                                        senhaAtual = ""
-                                        senhaNova = ""
-                                        senhaRepetida = ""
-                                    }
+            Secao("Senha do Bloco de Notas", "A mesma senha vale para o casal inteiro. Para trocar, confirme a senha atual.") {
+                OutlinedTextField(
+                    value = senhaAtual,
+                    onValueChange = { senhaAtual = it },
+                    label = { Text("Senha atual") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = senhaNova,
+                    onValueChange = { senhaNova = it },
+                    label = { Text("Nova senha") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = senhaRepetida,
+                    onValueChange = { senhaRepetida = it },
+                    label = { Text("Repita a nova senha") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                BotaoSite(
+                    texto = "Trocar senha",
+                    primario = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    aoClicar = {
+                        when {
+                            senhaNova.length < 4 -> avisoSenha = Aviso("A nova senha precisa ter pelo menos 4 caracteres.", true)
+                            senhaNova != senhaRepetida -> avisoSenha = Aviso("As duas senhas novas não batem.", true)
+                            else -> escopo.launch {
+                                // Como no site: manda o SHA-256 das senhas, nunca a senha em texto.
+                                val r = Servidor.postJson(
+                                    "/api/config/senha-bloco",
+                                    JSONObject()
+                                        .put("atual", sha256Hex(senhaAtual))
+                                        .put("nova", sha256Hex(senhaNova))
+                                )
+                                avisoSenha = avisoDe(r, "Senha trocada.")
+                                if (r.ok) {
+                                    senhaAtual = ""
+                                    senhaNova = ""
+                                    senhaRepetida = ""
                                 }
                             }
-                        },
-                        modifier = Modifier.padding(top = 12.dp)
-                    ) { Text("Trocar senha") }
-                    if (avisoSenha.isNotBlank()) Text(avisoSenha, modifier = Modifier.padding(top = 4.dp))
-                }
+                        }
+                    }
+                )
+                AvisoTexto(avisoSenha)
             }
         }
 
-        if (escolhendoData && dados.casalId != null) {
-            DialogoDataInicio(dados) { data ->
-                escolhendoData = false
-                if (data != null) escopo.launch {
-                    avisoData = Servidor.postJson("/api/config/data-namoro", JSONObject().put("data_namoro", data)).msg
-                }
-            }
+        // Conta
+        Secao("Conta", "Sair encerra a sessão neste aparelho.") {
+            BotaoSite(texto = "Sair da conta", aoClicar = { pedindoSair = true })
         }
 
-        // Sair
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Text("Conta", style = MaterialTheme.typography.titleMedium)
-                Button(
-                    onClick = {
-                        Servidor.encerrar()
-                        FirebaseAuth.getInstance().signOut()
-                    },
-                    modifier = Modifier.padding(top = 8.dp)
-                ) { Text("Sair da conta") }
+        Spacer(Modifier.height(LocalAlturaDock.current))
+    }
+
+    if (escolhendoData && dados.casalId != null) {
+        DialogoDataInicio(dados) { data ->
+            escolhendoData = false
+            if (data != null) escopo.launch {
+                val r = Servidor.postJson("/api/config/data-namoro", JSONObject().put("data_namoro", data))
+                avisoData = avisoDe(r, "Data salva.")
+                if (r.ok) recarregar++
             }
         }
+    }
+
+    fotoParaRemover?.let { foto ->
+        DialogoConfirmar(
+            titulo = "Remover foto?",
+            texto = "Ela some da página inicial de vocês.",
+            rotuloConfirmar = "Remover",
+            aoConfirmar = {
+                escopo.launch {
+                    val r = Servidor.apagar("/api/config/fotos/" + Uri.encode(foto.nome))
+                    avisoFotosCasal = avisoDe(r, "Foto removida.")
+                    if (r.ok) recarregar++
+                }
+            },
+            aoFechar = { fotoParaRemover = null }
+        )
+    }
+
+    if (pedindoSair) {
+        DialogoConfirmar(
+            titulo = "Sair da conta?",
+            texto = "Você vai precisar entrar de novo com o Google.",
+            rotuloConfirmar = "Sair",
+            aoConfirmar = {
+                Servidor.encerrar()
+                FirebaseAuth.getInstance().signOut()
+            },
+            aoFechar = { pedindoSair = false }
+        )
     }
 }
 

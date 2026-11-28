@@ -176,6 +176,11 @@ fun TelaPerfil(aoAbrir: (String) -> Unit) {
                     color = TintaSuave,
                     textAlign = TextAlign.Center
                 )
+                BotaoSite(
+                    texto = "Editar perfil",
+                    aoClicar = { aoAbrir("config-perfil") },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
             }
         }
 

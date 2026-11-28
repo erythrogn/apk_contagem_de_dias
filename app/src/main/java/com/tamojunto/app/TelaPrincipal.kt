@@ -133,14 +133,20 @@ fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
     // Vazio: menu. Senão, o nome da tela aberta a partir do menu.
     var destino by rememberSaveable { mutableStateOf("") }
     val pai = when {
-        destino == "amigos" || destino == "grupos" -> "perfil"
+        destino == "amigos" || destino == "grupos" || destino == "config-perfil" -> "perfil"
         destino.startsWith("grupo:") -> "grupos"
         else -> ""
     }
     BackHandler(enabled = destino.isNotEmpty()) { destino = pai }
 
     when {
-        destino == "config" -> TelaConfiguracoes(dados, usuario)
+        // "config" vem do menu Mais; "config-perfil" vem do botão Editar perfil e volta para o Perfil.
+        destino == "config" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) {
+            TelaConfiguracoes(dados, usuario)
+        }
+        destino == "config-perfil" -> ComVoltar(rotulo = "Perfil", aoVoltar = { destino = "perfil" }) {
+            TelaConfiguracoes(dados, usuario)
+        }
         destino == "perfil" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) {
             TelaPerfil(aoAbrir = { destino = it })
         }
