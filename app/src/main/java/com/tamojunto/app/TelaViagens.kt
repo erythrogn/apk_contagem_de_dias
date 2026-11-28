@@ -412,7 +412,20 @@ private fun FichaViagem(
             }
 
             // Preparativos: cada passo pode ser marcado ou tirado da lista.
-            Text("Preparativos", style = EstiloTituloSecao, color = Tinta)
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Preparativos", style = EstiloTituloSecao, color = Tinta)
+                if (v.checklist.isNotEmpty()) {
+                    Text(
+                        "${v.checklist.count { it.feito }} de ${v.checklist.size} prontos",
+                        style = EstiloRotulo,
+                        color = TintaSuave
+                    )
+                }
+            }
             v.checklist.forEachIndexed { indice, passo ->
                 Row(
                     Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -471,7 +484,20 @@ private fun FichaViagem(
             )
 
             // Roteiro: as coisinhas ligadas a esta viagem, na ordem dos dias.
-            Text("Roteiro", style = EstiloTituloSecao, color = Tinta)
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Roteiro", style = EstiloTituloSecao, color = Tinta)
+                if (paradas.isNotEmpty()) {
+                    Text(
+                        "${paradas.count { it.feito }} de ${paradas.size} feitas",
+                        style = EstiloRotulo,
+                        color = TintaSuave
+                    )
+                }
+            }
             if (paradas.isEmpty()) {
                 Text("O roteiro ainda está vazio.", style = EstiloRotulo, color = TintaSuave)
             }
