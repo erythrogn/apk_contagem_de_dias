@@ -141,13 +141,11 @@ fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
     BackHandler(enabled = destino.isNotEmpty()) { destino = pai }
 
     when {
-        // "config" vem do menu Mais; "config-perfil" vem do botão Editar perfil e volta para o Perfil.
-        destino == "config" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) {
-            TelaConfiguracoes(dados, usuario)
-        }
-        destino == "config-perfil" -> ComVoltar(rotulo = "Perfil", aoVoltar = { destino = "perfil" }) {
-            TelaConfiguracoes(dados, usuario)
-        }
+        // "config" vem do menu Mais; "config-perfil" vem do botão Editar perfil e abre direto no Perfil.
+        destino == "config" -> TelaConfiguracoes(dados, usuario, rotuloVoltar = "Mais", aoVoltar = { destino = "" })
+        destino == "config-perfil" -> TelaConfiguracoes(
+            dados, usuario, rotuloVoltar = "Perfil", aoVoltar = { destino = "perfil" }, abrirDireto = "perfil"
+        )
         destino == "perfil" -> ComVoltar(rotulo = "Mais", aoVoltar = { destino = "" }) {
             TelaPerfil(aoAbrir = { destino = it })
         }
@@ -172,52 +170,75 @@ fun TelaMais(dados: DadosDoCasal, usuario: FirebaseUser) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text("Mais", style = EstiloTituloSecao, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(18.dp))
-            LinhaMenu(
-                caminhos = listOf("M4 21v-7", "M4 10V3", "M12 21v-9", "M12 8V3", "M20 21v-5", "M20 12V3", "M1 14h6", "M9 8h6", "M17 16h6"),
-                titulo = "Configurações",
-                apoio = "Conta, casal e aparência",
-                ativo = true,
-                aoClicar = { destino = "config" }
-            )
-            LinhaMenu(
-                caminhos = listOf("M12 4a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M4 21a8 8 0 0 1 16 0"),
-                titulo = "Perfil",
-                apoio = "Seu @, amigos e pedidos",
-                ativo = true,
-                aoClicar = { destino = "perfil" }
-            )
-            LinhaMenu(
-                caminhos = listOf("M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M16 2v4", "M8 2v4", "M3 10h18", "M12 14.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 1 0 0-3z"),
-                titulo = "Calendário",
-                apoio = "Planos, mesversário e datas",
-                ativo = true,
-                aoClicar = { destino = "calendario" }
-            )
-            LinhaMenu(
-                caminhos = listOf("M3 11l19-9-9 19-2-8-8-2z"),
-                titulo = "Viagens",
-                apoio = "Roteiros e preparativos",
-                ativo = true,
-                aoClicar = { destino = "viagens" }
-            )
-            LinhaMenu(
-                caminhos = listOf("M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z", "M4 22v-7"),
-                titulo = "Missões",
-                apoio = "Missões para fazer juntos e o XP do Laço",
-                ativo = true,
-                aoClicar = { destino = "missoes" }
-            )
-            LinhaMenu(
-                caminhos = listOf("M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"),
-                titulo = "Céu de vocês",
-                apoio = "As histórias que viraram estrela",
-                ativo = true,
-                aoClicar = { destino = "ceu" }
-            )
+            Spacer(Modifier.height(22.dp))
+
+            // Agrupado pelo que a pessoa quer fazer: estar junto, planejar e cuidar da própria conta.
+            GrupoMenu("Vocês") {
+                LinhaMenu(
+                    caminhos = listOf("M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z", "M4 22v-7"),
+                    titulo = "Missões",
+                    apoio = "Desafios para fazer juntos e o XP do Laço",
+                    ativo = true,
+                    aoClicar = { destino = "missoes" }
+                )
+                LinhaMenu(
+                    caminhos = listOf("M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"),
+                    titulo = "Céu de vocês",
+                    apoio = "As histórias que viraram estrela",
+                    ativo = true,
+                    aoClicar = { destino = "ceu" }
+                )
+            }
+            GrupoMenu("Planos") {
+                LinhaMenu(
+                    caminhos = listOf("M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M16 2v4", "M8 2v4", "M3 10h18", "M12 14.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 1 0 0-3z"),
+                    titulo = "Agenda",
+                    apoio = "Datas, planos e mesversários",
+                    ativo = true,
+                    aoClicar = { destino = "calendario" }
+                )
+                LinhaMenu(
+                    caminhos = listOf("M3 11l19-9-9 19-2-8-8-2z"),
+                    titulo = "Viagens",
+                    apoio = "Roteiros e preparativos",
+                    ativo = true,
+                    aoClicar = { destino = "viagens" }
+                )
+            }
+            GrupoMenu("Você") {
+                LinhaMenu(
+                    caminhos = listOf("M12 4a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M4 21a8 8 0 0 1 16 0"),
+                    titulo = "Perfil",
+                    apoio = "Seu @, amigos e duos",
+                    ativo = true,
+                    aoClicar = { destino = "perfil" }
+                )
+                LinhaMenu(
+                    caminhos = listOf("M4 21v-7", "M4 10V3", "M12 21v-9", "M12 8V3", "M20 21v-5", "M20 12V3", "M1 14h6", "M9 8h6", "M17 16h6"),
+                    titulo = "Configurações",
+                    apoio = "Conta, casal e avisos",
+                    ativo = true,
+                    aoClicar = { destino = "config" }
+                )
+            }
+
             // Espaço para o último item não ficar embaixo da barra flutuante.
             Spacer(Modifier.height(LocalAlturaDock.current))
         }
+    }
+}
+
+// Grupo do menu Mais: um rótulo pequeno em caixa-alta e as linhas do grupo.
+@Composable
+private fun GrupoMenu(titulo: String, conteudo: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 22.dp)) {
+        Text(
+            titulo.uppercase(),
+            style = EstiloRotulo,
+            color = TintaSuave,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        conteudo()
     }
 }
 

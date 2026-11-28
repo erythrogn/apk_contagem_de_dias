@@ -177,9 +177,9 @@ internal fun PrepararAvisos() {
     }
 }
 
-// Controle dos avisos nas Configurações: um interruptor por tipo e o botão de permissão quando falta.
+// Conteúdo da subpágina Avisos: um interruptor por tipo e o botão de permissão quando falta.
 @Composable
-internal fun SecaoAvisosConfig() {
+internal fun ConteudoAvisosConfig() {
     val escopo = rememberCoroutineScope()
     val contexto = LocalContext.current
     var tipos by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
@@ -199,15 +199,13 @@ internal fun SecaoAvisosConfig() {
         carregou = true
     }
 
-    Column(Modifier.fillMaxWidth().padding(bottom = 28.dp)) {
-        Text("Avisos no celular", style = EstiloTituloSecao, color = Tinta)
+    Column(Modifier.fillMaxWidth()) {
         Text(
             "Quando alguém faz algo no seu casal, duo ou grupo, você recebe um aviso.",
-            style = EstiloApoio,
-            color = TintaSuave,
-            modifier = Modifier.padding(top = 4.dp)
+            style = EstiloRotulo,
+            color = TintaSuave
         )
-        Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
             if (!permitido) {
                 BotaoSite(
                     texto = "Permitir avisos",
@@ -230,7 +228,7 @@ internal fun SecaoAvisosConfig() {
                 else -> ORDEM_AVISOS.forEach { chave ->
                     val ligado = tipos[chave] ?: true
                     Row(
-                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        Modifier.fillMaxWidth().padding(vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(

@@ -7,6 +7,8 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -47,7 +49,7 @@ suspend fun lerFoto(contexto: Context, uri: Uri): Pair<ByteArray, String>? = wit
     bytes to (contexto.contentResolver.getType(uri) ?: "image/jpeg")
 }
 
-// Mensagem de uma ação: verde-suave quando deu certo, ocre quando o servidor recusou.
+// Mensagem de uma ação: cinza-suave quando deu certo, ocre quando o servidor recusou.
 private data class Aviso(val texto: String, val erro: Boolean)
 
 private fun avisoDe(r: RespostaServidor, sucesso: String): Aviso =
@@ -65,30 +67,66 @@ private fun AvisoTexto(aviso: Aviso?) {
     )
 }
 
-// Bloco de uma seção: título em itálico serifado, apoio pequeno e o conteúdo com espaço entre os itens.
+// Rótulo pequeno acima de um bloco dentro de uma subpágina.
 @Composable
-private fun Secao(titulo: String, apoio: String? = null, conteudo: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(bottom = 28.dp)) {
-        Text(titulo, style = EstiloTituloSecao, color = Tinta)
-        if (apoio != null) {
-            Text(apoio, style = EstiloApoio, color = TintaSuave, modifier = Modifier.padding(top = 4.dp))
+private fun Rotulo(texto: String) {
+    Text(texto, style = EstiloRotulo, color = TintaSuave)
+}
+
+// Linha de configuração: título, apoio pequeno e seta. Pode ser de perigo (sair).
+@Composable
+private fun LinhaConfig(titulo: String, apoio: String?, perigo: Boolean = false, aoClicar: () -> Unit) {
+    val cor = if (perigo) Ocre else Tinta
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = aoClicar)
+                .padding(vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(titulo, style = EstiloApoio, color = cor)
+                if (apoio != null) Text(apoio, style = EstiloRotulo, color = TintaSuave)
+            }
+            if (!perigo) IconeLinha(caminhos = listOf("M9 18l6-6-6-6"), tamanho = 18.dp, cor = TintaSuave)
         }
-        Column(
-            Modifier.fillMaxWidth().padding(top = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            content = conteudo
-        )
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Tinta.copy(alpha = 0.12f)))
     }
 }
 
-// Configurações do site, na mesma ordem: perfil, casal (data, convite, fotos, senha) e conta.
+// Cabeçalho de volta, no mesmo estilo do menu Mais.
 @Composable
-fun TelaConfiguracoes(dados: DadosDoCasal, usuario: FirebaseUser) {
+private fun CabecalhoVoltar(rotulo: String, aoVoltar: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = aoVoltar)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconeLinha(caminhos = listOf("M15 19l-7-7 7-7"), tamanho = 18.dp, cor = Tinta)
+        Text(rotulo, style = EstiloApoio, color = Tinta, modifier = Modifier.padding(start = 6.dp))
+    }
+}
+
+// Configurações: uma lista simples. Cada área abre numa subpágina com as suas ações.
+// rotuloVoltar e aoVoltar dizem para onde a seta leva. abrirDireto abre uma subpágina de cara (ex.: perfil).
+@Composable
+fun TelaConfiguracoes(
+    dados: DadosDoCasal,
+    usuario: FirebaseUser,
+    rotuloVoltar: String,
+    aoVoltar: () -> Unit,
+    abrirDireto: String = ""
+) {
     val contexto = LocalContext.current
     val escopo = rememberCoroutineScope()
     val areaTransferencia = LocalClipboardManager.current
+    val casal = dados.casalId != null
 
-    // Quando isto muda, a tela busca o perfil e as fotos de novo.
+    // Vazio: lista principal. Senão, o nome da subpágina aberta.
+    var pagina by rememberSaveable { mutableStateOf(abrirDireto) }
     var recarregar by remember { mutableStateOf(0) }
 
     var perfilCarregado by rememberSaveable { mutableStateOf(false) }
@@ -125,14 +163,14 @@ fun TelaConfiguracoes(dados: DadosDoCasal, usuario: FirebaseUser) {
             }
             fotoPerfil = perfil.foto
         }
-        if (dados.casalId != null) {
+        if (casal) {
             fotosCasal = InicioServidorCasal.carregar().first?.fotos.orEmpty()
         }
     }
 
     val escolherFotoPerfil = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) escopo.launch {
-            avisoFotoPerfil = Aviso("Enviando foto...", false)
+            avisoFotoPerfil = Aviso("Enviando foto…", false)
             val arquivo = lerFoto(contexto, uri)
             if (arquivo == null) {
                 avisoFotoPerfil = Aviso("Não consegui ler essa foto.", true)
@@ -146,7 +184,7 @@ fun TelaConfiguracoes(dados: DadosDoCasal, usuario: FirebaseUser) {
 
     val escolherFotoCasal = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) escopo.launch {
-            avisoFotosCasal = Aviso("Enviando foto...", false)
+            avisoFotosCasal = Aviso("Enviando foto…", false)
             val arquivo = lerFoto(contexto, uri)
             if (arquivo == null) {
                 avisoFotosCasal = Aviso("Não consegui ler essa foto.", true)
@@ -158,225 +196,257 @@ fun TelaConfiguracoes(dados: DadosDoCasal, usuario: FirebaseUser) {
         }
     }
 
+    // A subpágina aberta direto (Editar perfil) volta para a tela de origem; as outras voltam para a lista.
+    val diretaAberta = abrirDireto.isNotEmpty() && pagina == abrirDireto
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(12.dp)
             .papelDoSite()
-            .padding(20.dp)
+            .padding(horizontal = 20.dp, vertical = 12.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Text("Configurações", style = EstiloTituloSecao, color = Tinta)
-        Text(
-            if (dados.casalId == null) "Sua conta." else "Sua conta e o casal.",
-            style = EstiloApoio,
-            color = TintaSuave,
-            modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
-        )
+        if (pagina.isEmpty()) {
+            CabecalhoVoltar(rotulo = rotuloVoltar, aoVoltar = aoVoltar)
 
-        // Perfil
-        Secao("Seu perfil", "É assim que as outras pessoas veem você.") {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                AvatarPessoa(nome = nome.ifBlank { "?" }, foto = fotoPerfil, tamanho = 72.dp)
-                Text(usuario.email.orEmpty(), style = EstiloRotulo, color = TintaSuave)
-            }
-            OutlinedTextField(
-                value = nome,
-                onValueChange = { nome = it.take(40) },
-                label = { Text("Seu nome") },
-                supportingText = { Text("Até 40 letras.") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            BotaoSite(
-                texto = "Salvar nome",
-                primario = true,
-                modifier = Modifier.fillMaxWidth(),
-                aoClicar = {
-                    escopo.launch {
-                        val r = Servidor.postJson("/api/config/perfil", JSONObject().put("nome", nome.trim()))
-                        avisoNome = avisoDe(r, "Nome salvo.")
-                        if (r.ok) recarregar++
-                    }
-                }
-            )
-            AvisoTexto(avisoNome)
-
-            OutlinedTextField(
-                value = handle,
-                onValueChange = { handle = it.replace(" ", "").removePrefix("@") },
-                label = { Text("Seu @") },
-                prefix = { Text("@") },
-                supportingText = { Text("Amigos encontram você por esse @.") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            BotaoSite(
-                texto = "Salvar @",
-                primario = true,
-                modifier = Modifier.fillMaxWidth(),
-                aoClicar = {
-                    escopo.launch {
-                        val msg = AmizadesServidor.definirHandle(handle.trim())
-                        // definirHandle devolve a mensagem de sucesso fixa quando deu certo.
-                        avisoHandle = Aviso(msg, msg != "Seu @ foi salvo.")
-                        if (!avisoHandle!!.erro) recarregar++
-                    }
-                }
-            )
-            AvisoTexto(avisoHandle)
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                BotaoSite(
-                    texto = "Trocar foto",
-                    modifier = Modifier.weight(1f),
-                    aoClicar = {
-                        escolherFotoPerfil.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    }
-                )
-                BotaoSite(
-                    texto = "Foto do Google",
-                    modifier = Modifier.weight(1f),
-                    aoClicar = {
-                        escopo.launch {
-                            val r = Servidor.apagar("/api/config/foto-perfil")
-                            avisoFotoPerfil = avisoDe(r, "Agora você usa a foto da conta Google.")
-                            if (r.ok) recarregar++
-                        }
-                    }
-                )
-            }
-            AvisoTexto(avisoFotoPerfil)
-        }
-
-        if (dados.casalId != null) {
-            // Casal
-            Secao("O casal", "Data, convite e as fotos da página inicial.") {
-                Text("Data de início", style = EstiloRotulo, color = TintaSuave)
-                Text(
-                    dados.dataNamoro?.let { dataBr(it) } ?: "Não definida",
-                    style = EstiloApoio,
-                    color = Tinta
-                )
-                BotaoSite(texto = "Escolher data", aoClicar = { escolhendoData = true })
-                AvisoTexto(avisoData)
-
-                Text("Convidar a outra pessoa", style = EstiloRotulo, color = TintaSuave, modifier = Modifier.padding(top = 8.dp))
-                Text("O código vale 7 dias e só pode ser usado uma vez.", style = EstiloApoio, color = TintaSuave)
-                BotaoSite(
-                    texto = "Gerar código",
-                    aoClicar = {
-                        escopo.launch {
-                            val r = Servidor.postJson("/api/config/convite", JSONObject())
-                            codigoConvite = if (r.ok) r.corpo?.optString("codigo") else null
-                            avisoConvite = if (r.ok) null else avisoDe(r, "")
-                        }
-                    }
-                )
-                codigoConvite?.let { codigo ->
-                    Text(codigo, style = EstiloTituloSecao, color = Tinta)
-                    BotaoSite(
-                        texto = "Copiar código",
-                        aoClicar = { areaTransferencia.setText(AnnotatedString(codigo)) }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                AvatarPessoa(nome = nome.ifBlank { "?" }, foto = fotoPerfil, tamanho = 64.dp)
+                Column(Modifier.weight(1f)) {
+                    Text(nome.ifBlank { "Sem nome" }, style = EstiloTituloSecao, color = Tinta)
+                    Text(
+                        if (handle.isNotBlank()) "@$handle" else "Defina seu @",
+                        style = EstiloRotulo,
+                        color = TintaSuave
                     )
-                }
-                AvisoTexto(avisoConvite)
-
-                Text("Fotos da página inicial", style = EstiloRotulo, color = TintaSuave, modifier = Modifier.padding(top = 8.dp))
-                if (fotosCasal.isEmpty()) {
-                    Text("Nenhuma foto ainda.", style = EstiloApoio, color = TintaSuave)
-                }
-                fotosCasal.forEach { foto ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        AsyncImage(
-                            model = foto.url,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(Modifier.weight(1f))
-                        BotaoSite(texto = "Remover", aoClicar = { fotoParaRemover = foto })
+                    if (usuario.email != null) {
+                        Text(usuario.email.orEmpty(), style = EstiloRotulo, color = TintaSuave)
                     }
                 }
-                BotaoSite(
-                    texto = "Adicionar foto",
-                    aoClicar = {
-                        escolherFotoCasal.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    }
-                )
-                AvisoTexto(avisoFotosCasal)
             }
 
-            // Senha do Bloco de Notas
-            Secao("Senha do Bloco de Notas", "A mesma senha vale para o casal inteiro. Para trocar, confirme a senha atual.") {
-                OutlinedTextField(
-                    value = senhaAtual,
-                    onValueChange = { senhaAtual = it },
-                    label = { Text("Senha atual") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = senhaNova,
-                    onValueChange = { senhaNova = it },
-                    label = { Text("Nova senha") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = senhaRepetida,
-                    onValueChange = { senhaRepetida = it },
-                    label = { Text("Repita a nova senha") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                BotaoSite(
-                    texto = "Trocar senha",
-                    primario = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    aoClicar = {
-                        when {
-                            senhaNova.length < 4 -> avisoSenha = Aviso("A nova senha precisa ter pelo menos 4 caracteres.", true)
-                            senhaNova != senhaRepetida -> avisoSenha = Aviso("As duas senhas novas não batem.", true)
-                            else -> escopo.launch {
-                                // Como no site: manda o SHA-256 das senhas, nunca a senha em texto.
-                                val r = Servidor.postJson(
-                                    "/api/config/senha-bloco",
-                                    JSONObject()
-                                        .put("atual", sha256Hex(senhaAtual))
-                                        .put("nova", sha256Hex(senhaNova))
-                                )
-                                avisoSenha = avisoDe(r, "Senha trocada.")
-                                if (r.ok) {
-                                    senhaAtual = ""
-                                    senhaNova = ""
-                                    senhaRepetida = ""
+            Spacer(Modifier.height(24.dp))
+            LinhaConfig("Perfil", "Nome, @ e foto") { pagina = "perfil" }
+            if (casal) {
+                LinhaConfig("Casal", "Data de início, convite e fotos") { pagina = "casal" }
+                LinhaConfig("Senha do Bloco", "A senha que protege as notas") { pagina = "senha" }
+            }
+            LinhaConfig("Avisos no celular", "Quais avisos chegam para você") { pagina = "avisos" }
+
+            Spacer(Modifier.height(32.dp))
+            LinhaConfig("Sair da conta", null, perigo = true) { pedindoSair = true }
+        } else {
+            CabecalhoVoltar(
+                rotulo = if (diretaAberta) rotuloVoltar else "Configurações",
+                aoVoltar = { if (diretaAberta) aoVoltar() else pagina = "" }
+            )
+            Spacer(Modifier.height(8.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                when (pagina) {
+                    "perfil" -> {
+                        OutlinedTextField(
+                            value = nome,
+                            onValueChange = { nome = it.take(40) },
+                            label = { Text("Seu nome") },
+                            supportingText = { Text("Até 40 letras.") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        BotaoSite(
+                            texto = "Salvar nome",
+                            primario = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            aoClicar = {
+                                escopo.launch {
+                                    val r = Servidor.postJson("/api/config/perfil", JSONObject().put("nome", nome.trim()))
+                                    avisoNome = avisoDe(r, "Nome salvo.")
+                                    if (r.ok) recarregar++
                                 }
                             }
+                        )
+                        AvisoTexto(avisoNome)
+
+                        OutlinedTextField(
+                            value = handle,
+                            onValueChange = { handle = it.replace(" ", "").removePrefix("@") },
+                            label = { Text("Seu @") },
+                            prefix = { Text("@") },
+                            supportingText = { Text("Amigos encontram você por esse @.") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        BotaoSite(
+                            texto = "Salvar @",
+                            primario = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            aoClicar = {
+                                escopo.launch {
+                                    val msg = AmizadesServidor.definirHandle(handle.trim())
+                                    // definirHandle devolve a mensagem de sucesso fixa quando deu certo.
+                                    val erro = msg != "Seu @ foi salvo."
+                                    avisoHandle = Aviso(msg, erro)
+                                    if (!erro) recarregar++
+                                }
+                            }
+                        )
+                        AvisoTexto(avisoHandle)
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                            BotaoSite(
+                                texto = "Trocar foto",
+                                modifier = Modifier.weight(1f),
+                                aoClicar = {
+                                    escolherFotoPerfil.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                }
+                            )
+                            BotaoSite(
+                                texto = "Foto do Google",
+                                modifier = Modifier.weight(1f),
+                                aoClicar = {
+                                    escopo.launch {
+                                        val r = Servidor.apagar("/api/config/foto-perfil")
+                                        avisoFotoPerfil = avisoDe(r, "Agora você usa a foto da conta Google.")
+                                        if (r.ok) recarregar++
+                                    }
+                                }
+                            )
                         }
+                        AvisoTexto(avisoFotoPerfil)
                     }
-                )
-                AvisoTexto(avisoSenha)
+
+                    "casal" -> {
+                        Rotulo("Data de início")
+                        Text(
+                            dados.dataNamoro?.let { dataBr(it) } ?: "Não definida",
+                            style = EstiloApoio,
+                            color = Tinta
+                        )
+                        BotaoSite(texto = "Escolher data", aoClicar = { escolhendoData = true })
+                        AvisoTexto(avisoData)
+
+                        Rotulo("Convite")
+                        Text("O código vale 7 dias e só pode ser usado uma vez.", style = EstiloApoio, color = TintaSuave)
+                        BotaoSite(
+                            texto = "Gerar código",
+                            aoClicar = {
+                                escopo.launch {
+                                    val r = Servidor.postJson("/api/config/convite", JSONObject())
+                                    codigoConvite = if (r.ok) r.corpo?.optString("codigo") else null
+                                    avisoConvite = if (r.ok) null else avisoDe(r, "")
+                                }
+                            }
+                        )
+                        codigoConvite?.let { codigo ->
+                            Text(codigo, style = EstiloTituloSecao, color = Tinta)
+                            BotaoSite(
+                                texto = "Copiar código",
+                                aoClicar = { areaTransferencia.setText(AnnotatedString(codigo)) }
+                            )
+                        }
+                        AvisoTexto(avisoConvite)
+
+                        Rotulo("Fotos da página inicial")
+                        if (fotosCasal.isEmpty()) {
+                            Text("Nenhuma foto ainda.", style = EstiloApoio, color = TintaSuave)
+                        }
+                        fotosCasal.forEach { foto ->
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                AsyncImage(
+                                    model = foto.url,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(56.dp)
+                                )
+                                Spacer(Modifier.weight(1f))
+                                BotaoSite(texto = "Remover", aoClicar = { fotoParaRemover = foto })
+                            }
+                        }
+                        BotaoSite(
+                            texto = "Adicionar foto",
+                            aoClicar = {
+                                escolherFotoCasal.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            }
+                        )
+                        AvisoTexto(avisoFotosCasal)
+                    }
+
+                    "senha" -> {
+                        Text(
+                            "A mesma senha vale para o casal inteiro. Para trocar, confirme a senha atual.",
+                            style = EstiloApoio,
+                            color = TintaSuave
+                        )
+                        OutlinedTextField(
+                            value = senhaAtual,
+                            onValueChange = { senhaAtual = it },
+                            label = { Text("Senha atual") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = senhaNova,
+                            onValueChange = { senhaNova = it },
+                            label = { Text("Nova senha") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = senhaRepetida,
+                            onValueChange = { senhaRepetida = it },
+                            label = { Text("Repita a nova senha") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        BotaoSite(
+                            texto = "Trocar senha",
+                            primario = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            aoClicar = {
+                                when {
+                                    senhaNova.length < 4 -> avisoSenha = Aviso("A nova senha precisa ter pelo menos 4 caracteres.", true)
+                                    senhaNova != senhaRepetida -> avisoSenha = Aviso("As duas senhas novas não batem.", true)
+                                    else -> escopo.launch {
+                                        // Como no site: manda o SHA-256 das senhas, nunca a senha em texto.
+                                        val r = Servidor.postJson(
+                                            "/api/config/senha-bloco",
+                                            JSONObject()
+                                                .put("atual", sha256Hex(senhaAtual))
+                                                .put("nova", sha256Hex(senhaNova))
+                                        )
+                                        avisoSenha = avisoDe(r, "Senha trocada.")
+                                        if (r.ok) {
+                                            senhaAtual = ""
+                                            senhaNova = ""
+                                            senhaRepetida = ""
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                        AvisoTexto(avisoSenha)
+                    }
+
+                    "avisos" -> ConteudoAvisosConfig()
+                }
             }
-        }
-
-        SecaoAvisosConfig()
-
-        // Conta
-        Secao("Conta", "Sair encerra a sessão neste aparelho.") {
-            BotaoSite(texto = "Sair da conta", aoClicar = { pedindoSair = true })
         }
 
         Spacer(Modifier.height(LocalAlturaDock.current))
     }
 
-    if (escolhendoData && dados.casalId != null) {
+    if (escolhendoData && casal) {
         DialogoDataInicio(dados) { data ->
             escolhendoData = false
             if (data != null) escopo.launch {
