@@ -253,6 +253,26 @@ private fun InicioDoCasal(dados: DadosDoCasal, usuario: FirebaseUser) {
     val locEu = dados.localizacoes[eu]?.takeIf { it.ativo }
     val locOutra = dados.localizacoes[outra]?.takeIf { it.ativo }
 
+    // Pergunta do dia: o cartão mostra a de hoje e a folha deixa responder.
+    var perguntas by remember { mutableStateOf<PerguntasApp?>(null) }
+    var erroPerguntas by remember { mutableStateOf("") }
+    var abrirPerguntas by rememberSaveable { mutableStateOf(false) }
+    val escopoPerguntas = rememberCoroutineScope()
+    fun atualizarPerguntas() {
+        escopoPerguntas.launch {
+            val (app, msg) = PerguntasServidor.carregar()
+            if (app != null) perguntas = app
+            erroPerguntas = if (app == null) msg else ""
+        }
+    }
+    LaunchedEffect(dados.casalId) { atualizarPerguntas() }
+    if (abrirPerguntas) {
+        FolhaPerguntasDia(
+            aoFechar = { abrirPerguntas = false; atualizarPerguntas() },
+            aoMudar = { atualizarPerguntas() }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(12.dp).papelDoSite().padding(20.dp),
         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = LocalAlturaDock.current),
@@ -271,6 +291,7 @@ private fun InicioDoCasal(dados: DadosDoCasal, usuario: FirebaseUser) {
             item { Text(erroInicio, style = MaterialTheme.typography.bodyMedium) }
         }
         inicio?.hoje?.let { hoje -> item { CartaoHoje(hoje) } }
+        item { CartaoPerguntaHoje(hoje = perguntas?.hoje, erro = erroPerguntas, aoAbrir = { abrirPerguntas = true }) }
         item { CartaoProximas(proximas) }
         item {
             CartaoFotos(
