@@ -266,6 +266,29 @@ private fun InicioDoCasal(dados: DadosDoCasal, usuario: FirebaseUser) {
         }
     }
     LaunchedEffect(dados.casalId) { atualizarPerguntas() }
+
+    // Ordem e cartões escondidos da página: ao vivo, para os dois verem a mesma página.
+    var prefInicio by remember { mutableStateOf(PREF_INICIO_PADRAO) }
+    var organizando by rememberSaveable { mutableStateOf(false) }
+    DisposableEffect(dados.casalId) {
+        val casal = dados.casalId
+        if (casal == null) {
+            onDispose { }
+        } else {
+            val parar = PreferenciasApp.observarInicio("casais/$casal") { prefInicio = it }
+            onDispose { parar() }
+        }
+    }
+    if (organizando && dados.casalId != null) {
+        OrganizarInicioFolha(
+            pref = prefInicio,
+            aoMudar = { novo ->
+                prefInicio = novo
+                PreferenciasApp.salvarInicio("casais/${dados.casalId}", novo)
+            },
+            aoFechar = { organizando = false }
+        )
+    }
     if (abrirPerguntas) {
         FolhaPerguntasDia(
             aoFechar = { abrirPerguntas = false; atualizarPerguntas() },
@@ -290,45 +313,61 @@ private fun InicioDoCasal(dados: DadosDoCasal, usuario: FirebaseUser) {
         if (erroInicio.isNotBlank() && inicio == null) {
             item { Text(erroInicio, style = MaterialTheme.typography.bodyMedium) }
         }
-        inicio?.hoje?.let { hoje -> item { CartaoHoje(hoje) } }
-        item { CartaoPerguntaHoje(hoje = perguntas?.hoje, erro = erroPerguntas, aoAbrir = { abrirPerguntas = true }) }
-        item { CartaoProximas(proximas) }
-        item {
-            CartaoFotos(
-                fotos = inicio?.fotos.orEmpty(),
-                enviando = enviandoFoto,
-                aviso = avisoFoto,
-                aoAdicionar = {
-                    pegarFoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                },
-                aoAbrir = { visor = it }
-            )
+        if (dados.casalId != null) {
+            item {
+                BotaoSite(
+                    texto = "Organizar a página",
+                    aoClicar = { organizando = true },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
-        inicio?.laco?.let { laco -> item { CartaoLaco(laco) } }
-        item {
-            CartaoClima(
-                dados = dados,
-                eu = eu,
-                outra = outra,
-                nomeEu = nomeEu,
-                nomeOutra = nomeOutra,
-                aviso = aviso,
-                pegandoLocal = pegandoLocal,
-                compartilhando = compartilhando,
-                aoAlternarCompartilhar = { ligar ->
-                    if (ligar) {
-                        pedirLocal.launch(
-                            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-                        )
-                    } else {
-                        dados.pararLocalizacao()
-                    }
-                },
-                podeMapa = locEu != null && locOutra != null,
-                aoVerMapa = { mapaAberto = true },
-                aoLer = { lendo = it },
-                aoEscrever = { escrevendo = true }
-            )
+        // Cada cartão na ordem e com a visibilidade que o casal escolheu.
+        prefInicio.ordem.filter { it !in prefInicio.ocultos }.forEach { chave ->
+            when (chave) {
+                "hoje" -> inicio?.hoje?.let { hoje -> item { CartaoHoje(hoje) } }
+                "perguntas" -> item {
+                    CartaoPerguntaHoje(hoje = perguntas?.hoje, erro = erroPerguntas, aoAbrir = { abrirPerguntas = true })
+                }
+                "proximas" -> item { CartaoProximas(proximas) }
+                "fotos" -> item {
+                    CartaoFotos(
+                        fotos = inicio?.fotos.orEmpty(),
+                        enviando = enviandoFoto,
+                        aviso = avisoFoto,
+                        aoAdicionar = {
+                            pegarFoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                        aoAbrir = { visor = it }
+                    )
+                }
+                "laco" -> inicio?.laco?.let { laco -> item { CartaoLaco(laco) } }
+                "clima" -> item {
+                    CartaoClima(
+                        dados = dados,
+                        eu = eu,
+                        outra = outra,
+                        nomeEu = nomeEu,
+                        nomeOutra = nomeOutra,
+                        aviso = aviso,
+                        pegandoLocal = pegandoLocal,
+                        compartilhando = compartilhando,
+                        aoAlternarCompartilhar = { ligar ->
+                            if (ligar) {
+                                pedirLocal.launch(
+                                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+                                )
+                            } else {
+                                dados.pararLocalizacao()
+                            }
+                        },
+                        podeMapa = locEu != null && locOutra != null,
+                        aoVerMapa = { mapaAberto = true },
+                        aoLer = { lendo = it },
+                        aoEscrever = { escrevendo = true }
+                    )
+                }
+            }
         }
     }
 
