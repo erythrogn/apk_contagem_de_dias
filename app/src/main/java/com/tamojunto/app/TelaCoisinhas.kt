@@ -796,8 +796,8 @@ fun TelaCoisinhas(dados: DadosDoCasal) {
             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
-                .padding(end = 20.dp, bottom = 18.dp)
+                // Acima da barra flutuante: LocalAlturaDock já inclui a área de gesto do sistema.
+                .padding(end = 20.dp, bottom = LocalAlturaDock.current + 12.dp)
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = if (fabExpandido) 18.dp else 16.dp),
